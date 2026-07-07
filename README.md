@@ -59,8 +59,10 @@ as you go.
 
 Top-10 scores are saved on the device (each iPad/computer keeps its own list) —
 enter a name after a good run. The ⚙️ button opens admin mode (password
-protected): god mode, all weapons, full ammo, skip wave, and more. Using any
-admin tool disqualifies that run from the leaderboard.
+protected): whoever is playing right now receives whatever benefits the admin
+chooses — god mode, all weapons, full ammo, full hearts, skip wave, all maps.
+Admin tools can never add score: skipped waves pop the zombies for zero points
+and pay no wave bonus, and there is no score-granting tool.
 
 ## Controls
 

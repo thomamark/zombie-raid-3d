@@ -144,7 +144,6 @@
     <button class="adbtn" id="adAmmo">📦 Full Ammo</button>
     <button class="adbtn" id="adHeal">❤️ Full Hearts</button>
     <button class="adbtn" id="adSkip">⏭ Skip Wave</button>
-    <button class="adbtn" id="adScore">⭐ +1000 Score</button>
     <button class="adbtn" id="adMaps">🗺 All Maps</button>
   </div>
 </div>
@@ -900,7 +899,7 @@ const player = { x:0, z:0, hearts:5, invuln:0 };
 let score = 0, wave = 0, state = 'menu';
 let curWeapon = 0, unlocked = WEAPONS.map(w => w.unlock === 0);
 let ammo = WEAPONS.map(w => w.ammo || 0);
-let cheated = false;
+let skippedWave = false;               // admin skip: wave advances but pays no points
 let speedT = 0, shieldT = 0;           // easter-egg powerup timers
 let py = 0, jvy = 0;                   // jump height & velocity
 let pvx = 0, pvz = 0;                  // player velocity (for slippery ice)
@@ -984,7 +983,7 @@ function damageZombie(z, dmg, knock=0, kdx=0, kdz=0){
   if(knock > 0){ z.kbx += kdx*knock; z.kbz += kdz*knock; }
   if(z.hp <= 0) killZombie(z);
 }
-function killZombie(z){
+function killZombie(z, giveScore=true){
   const i = zombies.indexOf(z);
   if(i < 0) return;
   zombies.splice(i, 1);
@@ -993,7 +992,7 @@ function killZombie(z){
   burst(p.x, 1*z.s, p.z, 0x6fbf4a, 10 + z.s*8 | 0, 4 + z.s*2);
   burst(p.x, 1*z.s, p.z, 0x3f7f2f, 6, 4);
   (z.type==='boss' || z.type==='brute') ? SFX.bigpop() : SFX.pop();
-  addScore(z.score);
+  if(giveScore) addScore(z.score);
   if(Math.random() < z.drop) dropPickup(p.x, p.z, 'heart');
   else if(Math.random() < 0.09) dropPickup(p.x, p.z, 'ammo');
   if(z.type === 'boss') dropPickup(p.x + 1.2, p.z, 'ammo');
@@ -1077,6 +1076,7 @@ function hurtPlayer(){
 function startWave(w){
   wave = w;
   spawnQueue = [];
+  skippedWave = false;
   // beat the boss wave, travel to the next map (cycles after the last one)
   const mi = (runStartMap + ((w - 1) / 5 | 0)) % MAPS.length;
   let traveled = false;
@@ -1130,7 +1130,7 @@ function startGame(){
   score = 0; yaw = 0; pitch = 0; shake = 0;
   curWeapon = 0; unlocked = WEAPONS.map(w => w.unlock === 0);
   ammo = WEAPONS.map(w => w.ammo || 0);
-  cheated = admin.god; // starting a run with god mode still on counts as admin use
+  skippedWave = false;
   runStartMap = currentMap;
   speedT = 0; shieldT = 0;
   py = 0; jvy = 0; pvx = 0; pvz = 0;
@@ -1160,15 +1160,14 @@ function gameOver(){
   lookStickEl.style.display = 'none';
   jumpBtn.style.display = 'none';
   SFX.gameover();
-  if(!cheated && score > best){ best = score; store.set('zr3d_best', best); }
+  if(score > best){ best = score; store.set('zr3d_best', best); }
   document.exitPointerLock && document.exitPointerLock();
   setTimeout(() => {
     overlayEl.querySelector('h1').textContent = '💀 GAME OVER 💀';
-    overlaySub.innerHTML = 'The zombies got you on wave ' + wave + '!' +
-      (cheated ? '<br>⚙️ Admin tools were used — this score can\'t go on the leaderboard.' : '');
+    overlaySub.textContent = 'The zombies got you on wave ' + wave + '!';
     overlayScore.classList.remove('hidden');
     overlayScore.textContent = '⭐ Score: ' + score + '   🏆 Best: ' + best;
-    if(!cheated && score > 0 && qualifiesForBoard(score)){
+    if(score > 0 && qualifiesForBoard(score)){
       $('nameRow').classList.remove('hidden');
       $('nameInput').value = store.get('zr3d_name') || '';
     }
@@ -1179,7 +1178,7 @@ function gameOver(){
   }, 900);
 }
 
-// ---- leaderboard (persisted locally; admin-assisted runs are disqualified)
+// ---- leaderboard (persisted locally; admin tools can't add score, so all runs count)
 function loadBoard(){ try{ return JSON.parse(store.get('zr3d_board') || '[]'); }catch(e){ return []; } }
 function saveBoard(b){ store.set('zr3d_board', JSON.stringify(b)); }
 function qualifiesForBoard(s){
@@ -1338,7 +1337,8 @@ function lookStickMove(t){
   lookKnobEl.style.top = (34 + dy) + 'px';
 }
 
-// admin mode (password-protected; using any tool disqualifies the run from the leaderboard)
+// admin mode (password-protected). Tools grant benefits to whoever is playing
+// right now — but none of them can add score (skip-wave pops give no points).
 const adminBtn = $('adminBtn'), adminPanel = $('adminPanel');
 let adminAuthed = false;
 adminBtn.addEventListener('click', e => {
@@ -1357,37 +1357,31 @@ $('adminGo').addEventListener('click', () => {
   }
 });
 $('adGod').addEventListener('click', () => {
-  cheated = true;
   admin.god = !admin.god;
   $('adGod').classList.toggle('on', admin.god);
   $('adGod').textContent = admin.god ? '🛡 God Mode ✓' : '🛡 God Mode';
 });
 $('adWeap').addEventListener('click', () => {
-  cheated = true;
   unlocked = unlocked.map(() => true);
   ammo = WEAPONS.map(w => w.maxAmmo || 0);
   SFX.unlock();
   refreshWeaponBar();
 });
 $('adAmmo').addEventListener('click', () => {
-  cheated = true;
   for(let j=0;j<WEAPONS.length;j++) if(unlocked[j] && WEAPONS[j].maxAmmo) ammo[j] = WEAPONS[j].maxAmmo;
   SFX.reload();
   refreshWeaponBar();
 });
 $('adHeal').addEventListener('click', () => {
-  cheated = true;
   player.hearts = 5; SFX.heart(); updateHUD();
 });
 $('adSkip').addEventListener('click', () => {
   if(state !== 'playing') return;
-  cheated = true;
   spawnQueue.length = 0;
-  for(const z of [...zombies]) killZombie(z);
+  skippedWave = true;
+  for(const z of [...zombies]) killZombie(z, false); // pops, but no points
 });
-$('adScore').addEventListener('click', () => { cheated = true; addScore(1000); });
 $('adMaps').addEventListener('click', () => {
-  cheated = true;
   unlockedMaps = MAPS.length;
   store.set('zr3d_maps', unlockedMaps);
   refreshMapBtns();
@@ -1562,11 +1556,11 @@ function loop(now){
     if(!spawnQueue.length && !zombies.length){
       if(waveBreakT <= 0){
         const bonus = 20 + wave*10;
-        addScore(bonus);
+        if(!skippedWave) addScore(bonus);
         for(let j=0;j<WEAPONS.length;j++) if(unlocked[j] && WEAPONS[j].maxAmmo)
           ammo[j] = Math.min(WEAPONS[j].maxAmmo, ammo[j] + Math.ceil(WEAPONS[j].maxAmmo*0.15));
         refreshWeaponBar();
-        showBanner('WAVE CLEARED! +' + bonus);
+        showBanner(skippedWave ? 'WAVE SKIPPED!' : 'WAVE CLEARED! +' + bonus);
         waveBreakT = 2.4;
       } else {
         waveBreakT -= dt;
