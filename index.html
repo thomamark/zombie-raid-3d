@@ -90,7 +90,8 @@
     opacity:0; z-index:20; pointer-events:none; transition:opacity .12s; }
 
   #overlay { position:fixed; inset:0; z-index:30; display:flex; flex-direction:column;
-    align-items:center; justify-content:center; gap:18px; text-align:center;
+    align-items:center; justify-content:center; gap:14px; text-align:center;
+    overflow-y:auto; padding:20px 0;
     background:radial-gradient(circle at 50% 40%, rgba(20,10,40,.55), rgba(5,2,15,.82)); }
   #overlay h1 { font-size:min(11vw, 64px); }
   #overlay .sub { font-size:min(4.5vw, 22px); max-width:80%; line-height:1.5; }
@@ -111,6 +112,14 @@
   .mlabel { font-size:10px; font-weight:800; }
   .mdiff { font-size:9px; letter-spacing:1px; }
   #board { background:rgba(0,0,0,.35); padding:10px 20px; border-radius:14px; min-width:280px; font-size:15px; }
+  #miniboard { position:fixed; top:calc(52px + env(safe-area-inset-top)); left:calc(14px + env(safe-area-inset-left));
+    font-size:13px; z-index:9; pointer-events:none; opacity:.9; }
+  #metaRow { display:flex; gap:14px; align-items:flex-start; justify-content:center; flex-wrap:wrap; max-width:94vw; }
+  #achpanel { background:rgba(0,0,0,.35); padding:10px 14px; border-radius:14px; }
+  #achgrid { display:grid; grid-template-columns:repeat(7, 52px); gap:6px; }
+  .ach { display:flex; flex-direction:column; align-items:center; font-size:20px; line-height:1.1; }
+  .ach .aname { font-size:8px; font-weight:800; text-align:center; }
+  .ach.locked { opacity:.32; filter:grayscale(1); }
   .btitle { font-size:17px; margin-bottom:6px; text-align:center; }
   .brow { display:flex; justify-content:space-between; gap:20px; }
   #nameRow { display:flex; gap:8px; }
@@ -127,6 +136,7 @@
 <div id="score" class="hudtext">0</div>
 <div id="crosshair" class="hidden"></div>
 <div id="banner" class="hudtext"></div>
+<div id="miniboard" class="hudtext"></div>
 <div id="weaponbar"></div>
 <div id="stick"><div id="knob"></div></div>
 <button id="fireBtn">👊</button>
@@ -159,7 +169,13 @@
   </div>
   <div id="maprow"></div>
   <button id="playBtn">▶ PLAY</button>
-  <div id="board" class="hudtext hidden"></div>
+  <div id="metaRow">
+    <div id="board" class="hudtext hidden"></div>
+    <div id="achpanel" class="hudtext">
+      <div class="btitle">🏅 ACHIEVEMENTS <span id="achCount"></span></div>
+      <div id="achgrid"></div>
+    </div>
+  </div>
 </div>
 
 <script src="three.min.js"></script>
@@ -581,7 +597,7 @@ const WEAPONS = [
   { name:'Zap Zapper',      emoji:'⚡', type:'gun', dmg:1, rate:120, speed:44, size:.11, color:0x66e0ff, unlock:450, ammo:120, maxAmmo:180 },
   { name:'Bounce Ball Gun', emoji:'🏀', type:'gun', dmg:2, rate:450, speed:22, size:.3, color:0xff8833, gravity:true, bounce:4, pierce:true, sprite:'🏀', unlock:700, ammo:25, maxAmmo:40 },
   { name:'Goo Shotgun',     emoji:'🍇', type:'gun', dmg:2, rate:650, speed:28, size:.14, color:0xb45fd9, pellets:5, spread:0.13, unlock:1000, ammo:24, maxAmmo:36 },
-  { name:'Cat Cannon',      emoji:'🐱', type:'gun', dmg:2, rate:600, color:0xffaa55, cat:true, unlock:1400, ammo:1, maxAmmo:1 },
+  { name:'Cat Cannon',      emoji:'🐱', type:'gun', dmg:1, rate:600, color:0xffaa55, cat:true, unlock:1400, ammo:1, maxAmmo:1 },
   { name:'Freeze Ray',      emoji:'❄️', type:'gun', dmg:2, rate:360, speed:36, size:.15, color:0xbfe9ff, freeze:2.6, unlock:1800, ammo:25, maxAmmo:40 },
   { name:'Taco Cannon',     emoji:'🌮', type:'gun', dmg:4, rate:500, speed:24, size:.45, color:0xffcc66, gravity:true, blast:2.2, sprite:'🌮', unlock:2300, ammo:30, maxAmmo:45 },
   { name:'Boom Launcher',   emoji:'🚀', type:'gun', dmg:8, rate:850, speed:24, size:.24, color:0xff9040, blast:4, gravity:true, unlock:2900, ammo:10, maxAmmo:15 },
@@ -767,6 +783,7 @@ function coneBlast(w){
   burst(player.x + dir.x*4.5, 1.2, player.z + dir.z*4.5, 0x7fae3a, 10, 3);
   SFX.fart();
   shake = Math.min(shake + 0.25, 0.6);
+  unlockAch('fart');
 }
 
 // star storm: meteors rain down where you're aiming
@@ -845,7 +862,8 @@ function launchCat(){
     clamp(player.x + dir.x*2, -ARENA, ARENA), 0,
     clamp(player.z + dir.z*2, -ARENA, ARENA));
   scene.add(c.g);
-  cats.push({ g:c.g, legs:c.legs, tail:c.tail, life:14, atkT:0.3, meowT:rnd(1.5,3), phase:0 });
+  cats.push({ g:c.g, legs:c.legs, tail:c.tail, life:10, atkT:0.3, meowT:rnd(1.5,3), phase:0 });
+  unlockAch('cat');
 }
 
 // spitter goo shots
@@ -900,6 +918,9 @@ let score = 0, wave = 0, state = 'menu';
 let curWeapon = 0, unlocked = WEAPONS.map(w => w.unlock === 0);
 let ammo = WEAPONS.map(w => w.ammo || 0);
 let skippedWave = false;               // admin skip: wave advances but pays no points
+let catNapT = 0;                       // cooldown before the cat cannon reloads
+let waveHurt = false;                  // took damage this wave (for Perfect Wave)
+let runVisited = new Set();            // maps visited this run (for World Tour)
 let speedT = 0, shieldT = 0;           // easter-egg powerup timers
 let py = 0, jvy = 0;                   // jump height & velocity
 let pvx = 0, pvz = 0;                  // player velocity (for slippery ice)
@@ -972,6 +993,7 @@ function checkUnlocks(){
       selectWeapon(i);
     }
   });
+  if(unlocked.every(u => u)) unlockAch('arsenal');
   refreshWeaponBar();
 }
 function addScore(n){ score += n; updateHUD(); checkUnlocks(); }
@@ -992,7 +1014,14 @@ function killZombie(z, giveScore=true){
   burst(p.x, 1*z.s, p.z, 0x6fbf4a, 10 + z.s*8 | 0, 4 + z.s*2);
   burst(p.x, 1*z.s, p.z, 0x3f7f2f, 6, 4);
   (z.type==='boss' || z.type==='brute') ? SFX.bigpop() : SFX.pop();
-  if(giveScore) addScore(z.score);
+  if(giveScore){
+    addScore(z.score);
+    stats.kills++; saveStats();
+    unlockAch('pop1');
+    if(stats.kills >= 100) unlockAch('pop100');
+    if(stats.kills >= 500) unlockAch('pop500');
+    if(z.type === 'boss') unlockAch('boss');
+  }
   if(Math.random() < z.drop) dropPickup(p.x, p.z, 'heart');
   else if(Math.random() < 0.09) dropPickup(p.x, p.z, 'ammo');
   if(z.type === 'boss') dropPickup(p.x + 1.2, p.z, 'ammo');
@@ -1062,6 +1091,7 @@ function tryAttack(now){
 }
 function hurtPlayer(){
   if(player.invuln > 0 || state !== 'playing' || admin.god || shieldT > 0) return;
+  waveHurt = true;
   player.hearts--;
   player.invuln = 1.0;
   shake = Math.min(shake + 0.4, 0.8);
@@ -1077,6 +1107,9 @@ function startWave(w){
   wave = w;
   spawnQueue = [];
   skippedWave = false;
+  waveHurt = false;
+  if(w >= 5) unlockAch('wave5');
+  if(w >= 10) unlockAch('wave10');
   // beat the boss wave, travel to the next map (cycles after the last one)
   const mi = (runStartMap + ((w - 1) / 5 | 0)) % MAPS.length;
   let traveled = false;
@@ -1090,6 +1123,8 @@ function startWave(w){
       store.set('zr3d_maps', unlockedMaps);
       refreshMapBtns();
     }
+    runVisited.add(mi);
+    if(runVisited.size >= MAPS.length) unlockAch('travel');
   }
   // map-specific easter egg sometimes appears
   if(Math.random() < 0.45) dropPickup(rnd(-20, 20), rnd(-20, 20), 'egg');
@@ -1131,7 +1166,10 @@ function startGame(){
   curWeapon = 0; unlocked = WEAPONS.map(w => w.unlock === 0);
   ammo = WEAPONS.map(w => w.ammo || 0);
   skippedWave = false;
+  catNapT = 0;
+  waveHurt = false;
   runStartMap = currentMap;
+  runVisited = new Set([currentMap]);
   speedT = 0; shieldT = 0;
   py = 0; jvy = 0; pvx = 0; pvz = 0;
   $('nameRow').classList.add('hidden');
@@ -1172,26 +1210,115 @@ function gameOver(){
       $('nameInput').value = store.get('zr3d_name') || '';
     }
     renderBoard();
+    fetchBoard(); // refresh global scores while the game-over screen is up
     $('playBtn').textContent = '▶ PLAY AGAIN';
     overlayEl.classList.remove('hidden');
     spawnMenuZombies();
   }, 900);
 }
 
-// ---- leaderboard (persisted locally; admin tools can't add score, so all runs count)
-function loadBoard(){ try{ return JSON.parse(store.get('zr3d_board') || '[]'); }catch(e){ return []; } }
-function saveBoard(b){ store.set('zr3d_board', JSON.stringify(b)); }
+// ---- leaderboard: global when BOARD_API is set (a JSON endpoint supporting
+// GET + PUT of an array), with the local copy as cache/fallback when offline.
+// Admin tools can't add score, so every run counts.
+const BOARD_API = ''; // <- paste a shared JSON store URL here to go global
+function esc(s){ return String(s).replace(/[<>&]/g, ''); }
+function readCachedBoard(){
+  try{ const b = JSON.parse(store.get('zr3d_board') || '[]'); return Array.isArray(b) ? b : []; }
+  catch(e){ return []; }
+}
+let board = readCachedBoard();
+let boardGlobal = false;
+function mergeBoard(list){
+  const seen = new Set();
+  return list
+    .filter(e => e && typeof e.s === 'number' && e.n)
+    .filter(e => { const k = e.n + '|' + e.s + '|' + e.w; if(seen.has(k)) return false; seen.add(k); return true; })
+    .sort((a, b2) => b2.s - a.s)
+    .slice(0, 10);
+}
+function cacheBoard(){ store.set('zr3d_board', JSON.stringify(board)); }
+async function fetchBoard(){
+  if(!BOARD_API) return;
+  try{
+    const r = await fetch(BOARD_API);
+    if(!r.ok) throw new Error(r.status);
+    const remote = await r.json();
+    board = mergeBoard((Array.isArray(remote) ? remote : []).concat(board));
+    boardGlobal = true;
+    cacheBoard();
+    renderBoard();
+  }catch(e){ boardGlobal = false; }
+}
+async function submitScore(entry){
+  board = mergeBoard(board.concat([entry]));
+  cacheBoard();
+  renderBoard();
+  if(!BOARD_API) return;
+  try{
+    // re-read then write back so we don't clobber other players' fresh scores
+    const r = await fetch(BOARD_API);
+    const remote = r.ok ? await r.json() : [];
+    board = mergeBoard((Array.isArray(remote) ? remote : []).concat(board));
+    await fetch(BOARD_API, { method:'PUT', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify(board) });
+    boardGlobal = true;
+    cacheBoard();
+    renderBoard();
+  }catch(e){}
+}
 function qualifiesForBoard(s){
-  const b = loadBoard();
-  return b.length < 10 || s > b[b.length - 1].s;
+  return board.length < 10 || s > board[board.length - 1].s;
 }
 function renderBoard(){
-  const b = loadBoard().slice(0, 5);
+  const b = board.slice(0, 5);
   const boardEl = $('board');
-  if(!b.length){ boardEl.classList.add('hidden'); return; }
-  boardEl.classList.remove('hidden');
-  boardEl.innerHTML = '<div class="btitle">🏆 TOP SCORES</div>' + b.map((e, i) =>
-    `<div class="brow"><span>${i+1}. ${e.n}</span><span>${e.m || ''} wave ${e.w} · ${e.s}</span></div>`).join('');
+  if(!b.length) boardEl.classList.add('hidden');
+  else {
+    boardEl.classList.remove('hidden');
+    boardEl.innerHTML = '<div class="btitle">🏆 TOP SCORES ' +
+      (boardGlobal ? '🌍' : '<span style="font-size:11px">(this device)</span>') + '</div>' +
+      b.map((e, i) => `<div class="brow"><span>${i+1}. ${esc(e.n)}</span><span>${e.m || ''} wave ${e.w} · ${e.s}</span></div>`).join('');
+  }
+  $('miniboard').innerHTML = board.slice(0, 3).map((e, i) =>
+    `<div>${['🥇','🥈','🥉'][i]} ${esc(e.n)} ${e.s}</div>`).join('');
+}
+
+// ---- achievements (saved on the device)
+const ACHIEVEMENTS = [
+  { id:'pop1',    emoji:'🧟', name:'First Pop' },
+  { id:'pop100',  emoji:'💯', name:'100 Pops' },
+  { id:'pop500',  emoji:'🔥', name:'500 Pops' },
+  { id:'wave5',   emoji:'🌊', name:'Wave 5' },
+  { id:'wave10',  emoji:'🌀', name:'Wave 10' },
+  { id:'boss',    emoji:'👑', name:'Boss Buster' },
+  { id:'travel',  emoji:'🚌', name:'World Tour' },
+  { id:'cat',     emoji:'🐱', name:'Cat Person' },
+  { id:'fart',    emoji:'💨', name:'Toot Trooper' },
+  { id:'arsenal', emoji:'🔓', name:'Full Arsenal' },
+  { id:'perfect', emoji:'🛡', name:'Perfect Wave' },
+  { id:'hop',     emoji:'🦘', name:'Bunny Hopper' },
+  { id:'egg',     emoji:'🥚', name:'Egg Hunter' },
+  { id:'board',   emoji:'🏆', name:'On The Board' },
+];
+let achieved = {};
+try{ achieved = JSON.parse(store.get('zr3d_ach') || '{}') || {}; }catch(e){ achieved = {}; }
+let stats = { kills:0, jumps:0 };
+try{ stats = Object.assign(stats, JSON.parse(store.get('zr3d_stats') || '{}')); }catch(e){}
+function saveStats(){ store.set('zr3d_stats', JSON.stringify(stats)); }
+function unlockAch(id){
+  if(achieved[id]) return;
+  const a = ACHIEVEMENTS.find(x => x.id === id);
+  if(!a) return;
+  achieved[id] = true;
+  store.set('zr3d_ach', JSON.stringify(achieved));
+  // delay so it doesn't collide with wave banners
+  setTimeout(() => { showBanner('🏅 ' + a.emoji + ' ' + a.name.toUpperCase() + '!'); SFX.unlock(); }, 2100);
+  renderAchievements();
+}
+function renderAchievements(){
+  const done = ACHIEVEMENTS.filter(a => achieved[a.id]).length;
+  $('achCount').textContent = done + '/' + ACHIEVEMENTS.length;
+  $('achgrid').innerHTML = ACHIEVEMENTS.map(a =>
+    `<div class="ach${achieved[a.id] ? '' : ' locked'}">${a.emoji}<span class="aname">${a.name}</span></div>`).join('');
 }
 
 // idle zombies wandering behind the menu
@@ -1202,7 +1329,11 @@ function spawnMenuZombies(){
 // ============================================================ input
 const keys = {};
 function tryJump(){
-  if(state === 'playing' && py === 0){ jvy = 7; py = 0.001; SFX.jump(); }
+  if(state === 'playing' && py === 0){
+    jvy = 7; py = 0.001; SFX.jump();
+    stats.jumps++; saveStats();
+    if(stats.jumps >= 50) unlockAch('hop');
+  }
 }
 addEventListener('keydown', e => {
   if(e.target && e.target.tagName === 'INPUT') return; // typing a name or password
@@ -1392,12 +1523,9 @@ $('adMaps').addEventListener('click', () => {
 $('saveScore').addEventListener('click', () => {
   const name = ($('nameInput').value || 'PLAYER').slice(0, 10).replace(/[<>&]/g, '');
   store.set('zr3d_name', name);
-  const b = loadBoard();
-  b.push({ n:name, s:score, w:wave, m:MAPS[currentMap].emoji });
-  b.sort((a, b2) => b2.s - a.s);
-  saveBoard(b.slice(0, 10));
+  submitScore({ n:name, s:score, w:wave, m:MAPS[currentMap].emoji });
   $('nameRow').classList.add('hidden');
-  renderBoard();
+  unlockAch('board');
   SFX.unlock();
 });
 
@@ -1443,6 +1571,8 @@ let lastT = performance.now();
 buildMap(clamp(+(store.get('zr3d_map') || 0) || 0, 0, unlockedMaps - 1));
 refreshMapBtns();
 renderBoard();
+renderAchievements();
+fetchBoard();
 spawnMenuZombies();
 updateHUD();
 refreshWeaponBar();
@@ -1557,7 +1687,8 @@ function loop(now){
       if(waveBreakT <= 0){
         const bonus = 20 + wave*10;
         if(!skippedWave) addScore(bonus);
-        for(let j=0;j<WEAPONS.length;j++) if(unlocked[j] && WEAPONS[j].maxAmmo)
+        if(!skippedWave && !waveHurt) unlockAch('perfect');
+        for(let j=0;j<WEAPONS.length;j++) if(unlocked[j] && WEAPONS[j].maxAmmo && !WEAPONS[j].cat)
           ammo[j] = Math.min(WEAPONS[j].maxAmmo, ammo[j] + Math.ceil(WEAPONS[j].maxAmmo*0.15));
         refreshWeaponBar();
         showBanner(skippedWave ? 'WAVE SKIPPED!' : 'WAVE CLEARED! +' + bonus);
@@ -1702,13 +1833,7 @@ function loop(now){
       burst(c.g.position.x, 0.5, c.g.position.z, 0xf59c42, 8, 3);
       scene.remove(c.g);
       cats.splice(i, 1);
-      // the cat comes home: cannon reloads
-      const wi = WEAPONS.findIndex(w => w.cat);
-      if(unlocked[wi] && ammo[wi] < WEAPONS[wi].maxAmmo){
-        ammo[wi] = WEAPONS[wi].maxAmmo;
-        refreshWeaponBar();
-        if(state === 'playing') SFX.meow();
-      }
+      catNapT = 12; // the cat needs a nap before the cannon reloads
       continue;
     }
     // chase the nearest zombie; otherwise orbit the player
@@ -1724,8 +1849,8 @@ function loop(now){
     const d = Math.hypot(dx, dz) || 1;
     const stopAt = target ? 0.6 + target.s*0.4 : 0.5;
     if(d > stopAt){
-      c.g.position.x = clamp(c.g.position.x + dx/d * 7 * dt, -ARENA, ARENA);
-      c.g.position.z = clamp(c.g.position.z + dz/d * 7 * dt, -ARENA, ARENA);
+      c.g.position.x = clamp(c.g.position.x + dx/d * 6.5 * dt, -ARENA, ARENA);
+      c.g.position.z = clamp(c.g.position.z + dz/d * 6.5 * dt, -ARENA, ARENA);
     }
     c.g.rotation.y = Math.atan2(dx, dz);
     c.phase += dt * 14;
@@ -1735,13 +1860,24 @@ function loop(now){
     // pounce!
     c.atkT -= dt;
     if(target && bd < stopAt + 0.5 && c.atkT <= 0){
-      c.atkT = 0.5;
+      c.atkT = 0.7;
       const w = WEAPONS[WEAPONS.findIndex(w2 => w2.cat)];
       damageZombie(target, w.dmg, 2.5, dx/d, dz/d);
       burst(c.g.position.x + dx/d*0.4, 0.8, c.g.position.z + dz/d*0.4, 0xffcc88, 4, 2.5);
     }
     c.meowT -= dt;
     if(c.meowT <= 0){ c.meowT = rnd(2.5, 5); SFX.meow(); }
+  }
+  if(catNapT > 0){
+    catNapT -= dt;
+    if(catNapT <= 0){
+      const wi = WEAPONS.findIndex(w => w.cat);
+      if(unlocked[wi] && ammo[wi] < WEAPONS[wi].maxAmmo){
+        ammo[wi] = WEAPONS[wi].maxAmmo;
+        refreshWeaponBar();
+        if(state === 'playing') SFX.meow();
+      }
+    }
   }
 
   // ---- enemy goo shots
@@ -1791,7 +1927,8 @@ function loop(now){
     pk.sp.position.y = 1 + Math.sin(pk.t)*0.15;
     if(playing && Math.hypot(pk.sp.position.x - player.x, pk.sp.position.z - player.z) < 1.3){
       if(pk.kind === 'ammo'){
-        for(let j=0;j<WEAPONS.length;j++) if(unlocked[j] && WEAPONS[j].maxAmmo)
+        // (the cat cannon reloads only when the cat finishes its nap)
+        for(let j=0;j<WEAPONS.length;j++) if(unlocked[j] && WEAPONS[j].maxAmmo && !WEAPONS[j].cat)
           ammo[j] = Math.min(WEAPONS[j].maxAmmo, ammo[j] + Math.ceil(WEAPONS[j].maxAmmo*0.3));
         SFX.reload();
         refreshWeaponBar();
@@ -1800,6 +1937,7 @@ function loop(now){
         E.apply();
         showBanner(E.banner);
         SFX.unlock();
+        unlockAch('egg');
       } else {
         if(player.hearts < 5){ player.hearts++; } else { score += 25; }
         SFX.heart();
