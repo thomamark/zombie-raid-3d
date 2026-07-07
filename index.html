@@ -29,6 +29,9 @@
 
   #banner { position:fixed; left:0; right:0; top:26%; text-align:center; font-size:52px; z-index:11;
     pointer-events:none; opacity:0; }
+  #pauseLabel { position:fixed; left:0; right:0; top:38%; text-align:center; z-index:13;
+    font-size:44px; pointer-events:none; display:flex; flex-direction:column; align-items:center; gap:6px; }
+  #pauseLabel span { font-size:18px; opacity:.85; }
   #banner.show { animation: bannerPop 1.9s ease-out forwards; }
   @keyframes bannerPop {
     0% { opacity:0; transform:scale(.3); }
@@ -136,6 +139,7 @@
 <div id="score" class="hudtext">0</div>
 <div id="crosshair" class="hidden"></div>
 <div id="banner" class="hudtext"></div>
+<div id="pauseLabel" class="hudtext hidden">⏸️ PAUSED<span>tap ⚙️ to resume</span></div>
 <div id="miniboard" class="hudtext"></div>
 <div id="weaponbar"></div>
 <div id="stick"><div id="knob"></div></div>
@@ -922,7 +926,7 @@ function explosion(x, y, z, radius, dmg=8){
 
 // ============================================================ game state
 const player = { x:0, z:0, hearts:5, invuln:0 };
-let score = 0, wave = 0, state = 'menu';
+let score = 0, wave = 0, state = 'menu', paused = false;
 let curWeapon = 0, unlocked = WEAPONS.map(w => w.unlock === 0);
 let ammo = WEAPONS.map(w => w.ammo || 0);
 let skippedWave = false;               // admin skip: wave advances but pays no points
@@ -1176,6 +1180,9 @@ function startGame(){
   skippedWave = false;
   catNapT = 0;
   waveHurt = false;
+  paused = false;
+  $('pauseLabel').classList.add('hidden');
+  adminPanel.classList.add('hidden');
   runStartMap = currentMap;
   runVisited = new Set([currentMap]);
   speedT = 0; shieldT = 0;
@@ -1493,6 +1500,9 @@ let adminAuthed = false;
 adminBtn.addEventListener('click', e => {
   e.stopPropagation();
   adminPanel.classList.toggle('hidden');
+  const open = !adminPanel.classList.contains('hidden');
+  paused = open && state === 'playing';
+  $('pauseLabel').classList.toggle('hidden', !paused);
 });
 $('adminGo').addEventListener('click', () => {
   if($('adminPass').value === 'dustinxyz'){
@@ -1597,8 +1607,9 @@ refreshWeaponBar();
 
 function loop(now){
   requestAnimationFrame(loop);
-  const dt = Math.min((now - lastT)/1000, 0.05);
+  let dt = Math.min((now - lastT)/1000, 0.05);
   lastT = now;
+  if(paused) dt = 0; // settings open: freeze all motion, keep rendering
   const playing = state === 'playing';
 
   // ---- player movement
@@ -1639,7 +1650,7 @@ function loop(now){
     if(player.invuln > 0) player.invuln -= dt;
     if(speedT > 0) speedT -= dt;
     if(shieldT > 0){ shieldT -= dt; if(shieldT <= 0) updateHUD(); }
-    if(firing) tryAttack(now);
+    if(firing && !paused) tryAttack(now);
     // look joystick (rate-based)
     if(lookVec.x || lookVec.y){
       yaw -= lookVec.x * 2.8 * dt;
