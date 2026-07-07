@@ -5,10 +5,26 @@ across the yard — punch them, bonk them, and blast them before they get you.
 Start with your fists and unlock bigger and sillier weapons as your score climbs.
 Kid-friendly: zombies pop into green goo, no blood.
 
-## Maps
+## Maps (progressive difficulty!)
 
-Pick on the title screen: 🏡 **Backyard** (sunset), 🪦 **Graveyard** (spooky night
-with pumpkins), 🏖️ **Beach** (palms and ocean), ⛄ **Snow** (pines and snowmen).
+Reach **wave 5** on your newest map to unlock the next one. Harder maps have
+tougher, faster, bigger hordes — but every zombie is worth more points.
+
+| Map | Difficulty | Hazards | Secret treat |
+|---|---|---|---|
+| 🏡 Backyard | easy | picnic tables, doghouse | 🍪 Cookie (+1 ❤️) |
+| 🪦 Graveyard | 💀 | mud pits slow you down | 👻 Ghost Speed (12s) |
+| 🏖️ Beach | 💀💀 | tide pools, sandcastles | 🥥 Bubble Shield (10s) |
+| ⛄ Snow | 💀💀💀 | slippery ice patches, igloos | ☃️ Big Freeze (freezes every zombie) |
+
+Zombies also slow down in mud and tide pools — lure them in! Ice only makes
+*you* slide. Each map's secret treat appears somewhere in the arena on some
+waves — go find it.
+
+## Jumping
+
+**Space** (desktop) or the 🦘 button (iPad) — jump over a zombie's swipe to
+dodge it, or hop across mud and ice without the penalty.
 
 ## Weapons (unlock by scoring points)
 
@@ -46,10 +62,11 @@ admin tool disqualifies that run from the leaderboard.
 
 ## Controls
 
-**iPad:** left thumb = move (virtual joystick) • right thumb = look • big 💥 button = attack
-• tap the weapon icons to switch.
+**iPad:** left thumb = move (virtual joystick) • right thumb = look stick • big 💥 button = attack
+• 🦘 button = jump • tap the weapon icons to switch.
 
-**Mac/PC:** WASD = move • mouse = look • click = attack • keys 1–6 = switch weapons.
+**Mac/PC:** WASD = move • mouse = look • click = attack • Space = jump
+• keys 1–9 or Q/E = switch weapons.
 
 ## Play it on the iPad (local server)
 

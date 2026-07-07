@@ -62,6 +62,12 @@
     font-size:44px; z-index:12; display:none; box-shadow:0 4px 14px rgba(0,0,0,.5); }
   #fireBtn:active { transform:scale(.92); }
 
+  #jumpBtn { position:fixed; right:calc(44px + env(safe-area-inset-right)); bottom:calc(196px + env(safe-area-inset-bottom));
+    width:64px; height:64px; border-radius:50%; border:3px solid rgba(255,255,255,.6);
+    background:radial-gradient(circle at 35% 30%, rgba(120,200,255,.95), rgba(30,90,200,.9));
+    font-size:28px; z-index:12; display:none; box-shadow:0 4px 12px rgba(0,0,0,.5); }
+  #jumpBtn:active { transform:scale(.92); }
+
   #lookstick { position:fixed; right:calc(136px + env(safe-area-inset-right)); bottom:calc(24px + env(safe-area-inset-bottom));
     width:120px; height:120px; border-radius:50%;
     background:rgba(120,180,255,.12); border:2px solid rgba(160,200,255,.4);
@@ -97,11 +103,13 @@
   .hidden { display:none !important; }
 
   #maprow { display:flex; gap:10px; }
-  .mbtn { width:72px; height:64px; border-radius:14px; border:3px solid rgba(255,255,255,.45);
+  .mbtn { width:76px; height:74px; border-radius:14px; border:3px solid rgba(255,255,255,.45);
     background:rgba(0,0,0,.4); color:#fff; font-size:24px; display:flex; flex-direction:column;
-    align-items:center; justify-content:center; gap:2px; }
+    align-items:center; justify-content:center; gap:1px; }
   .mbtn.sel { border-color:#ffd54a; box-shadow:0 0 12px rgba(255,213,74,.7); }
+  .mbtn.locked { opacity:.45; filter:grayscale(.8); }
   .mlabel { font-size:10px; font-weight:800; }
+  .mdiff { font-size:9px; letter-spacing:1px; }
   #board { background:rgba(0,0,0,.35); padding:10px 20px; border-radius:14px; min-width:280px; font-size:15px; }
   .btitle { font-size:17px; margin-bottom:6px; text-align:center; }
   .brow { display:flex; justify-content:space-between; gap:20px; }
@@ -122,6 +130,7 @@
 <div id="weaponbar"></div>
 <div id="stick"><div id="knob"></div></div>
 <button id="fireBtn">👊</button>
+<button id="jumpBtn">🦘</button>
 <div id="lookstick"><div id="lookknob"></div></div>
 <button id="adminBtn">⚙️</button>
 <div id="adminPanel" class="hidden">
@@ -136,6 +145,7 @@
     <button class="adbtn" id="adHeal">❤️ Full Hearts</button>
     <button class="adbtn" id="adSkip">⏭ Skip Wave</button>
     <button class="adbtn" id="adScore">⭐ +1000 Score</button>
+    <button class="adbtn" id="adMaps">🗺 All Maps</button>
   </div>
 </div>
 <div id="redflash"></div>
@@ -161,6 +171,11 @@ const rnd = (a=1,b) => b===undefined ? Math.random()*a : a+Math.random()*(b-a);
 const clamp = (v,a,b) => v<a?a : v>b?b : v;
 const $ = id => document.getElementById(id);
 const isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints>0 && matchMedia('(pointer:coarse)').matches);
+// safe storage (localStorage can throw in sandboxed/private contexts)
+const store = {
+  get(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } },
+  set(k, v){ try{ localStorage.setItem(k, v); }catch(e){} },
+};
 
 // ============================================================ audio (all synthesized, no files)
 let AC = null;
@@ -208,6 +223,7 @@ const SFX = {
   fart(){ noiseBurst(.4, .45, 260); tone(88, 42, .38, 'sawtooth', .3); },
   click(){ tone(1200, 900, .04, 'square', .07); },
   reload(){ tone(520, 520, .05, 'square', .16); tone(760, 760, .06, 'square', .16, .08); },
+  jump(){ tone(280, 560, .14, 'sine', .12); },
   heart(){ tone(660, 990, .12, 'sine', .2); tone(990, 1320, .12, 'sine', .2, .1); },
   unlock(){ [523,659,784,1047].forEach((f,i)=>tone(f,f,.12,'square',.18,i*0.09)); },
   wave(){ tone(392,392,.12,'square',.2); tone(523,523,.18,'square',.2,.13); },
@@ -264,8 +280,10 @@ function groundTexture(base, s1, s2){
 
 const ARENA = 38;          // player/zombie positions clamp to ±ARENA
 const obstacles = [];      // {x,z,r} radial collision
+const zones = [];          // {x,z,r,type:'slow'|'ice'} ground effect patches
 
 function addObstacle(x,z,r){ obstacles.push({x,z,r}); }
+function addZone(x,z,r,type){ zones.push({x,z,r,type}); }
 
 // ============================================================ map decorations
 const woodPost = new THREE.BoxGeometry(0.25, 1.4, 0.25);
@@ -408,22 +426,85 @@ function decorWater(g){
   const w = new THREE.Mesh(new THREE.PlaneGeometry(300, 110), new THREE.MeshLambertMaterial({ color:0x2f8fd0 }));
   w.rotation.x = -Math.PI/2; w.position.set(0, 0.02, -100); g.add(w);
 }
+// ground-effect patch: mud/tide pool (slow) or ice (slippery)
+function decorPatch(g, x, z, r, type, color){
+  const p = new THREE.Mesh(new THREE.CircleGeometry(r, 20),
+    new THREE.MeshLambertMaterial({ color, transparent:true, opacity:0.85 }));
+  p.rotation.x = -Math.PI/2; p.position.set(x, 0.03, z); g.add(p);
+  addZone(x, z, r, type);
+}
+function decorDoghouse(g, x, z){
+  const t = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.3, 1.6), new THREE.MeshLambertMaterial({ color:0xb0552f }));
+  body.position.y = 0.65; t.add(body);
+  const roof = new THREE.Mesh(new THREE.ConeGeometry(1.4, 0.9, 4), new THREE.MeshLambertMaterial({ color:0x7a3a1e }));
+  roof.position.y = 1.75; roof.rotation.y = Math.PI/4; t.add(roof);
+  const door = new THREE.Mesh(new THREE.CircleGeometry(0.35, 12), new THREE.MeshLambertMaterial({ color:0x221510 }));
+  door.position.set(0, 0.55, 0.81); t.add(door);
+  t.position.set(x, 0, z); g.add(t);
+  addObstacle(x, z, 1.1);
+}
+function decorPicnic(g, x, z){
+  const t = new THREE.Group();
+  const wood = new THREE.MeshLambertMaterial({ color:0xc09055 });
+  const top = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.12, 1.4), wood); top.position.y = 0.75; t.add(top);
+  for(const bx of [-1, 1]){
+    const bench = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.1, 0.4), wood);
+    bench.position.set(0, 0.45, bx*1.05); t.add(bench);
+  }
+  for(const [lx, lz] of [[-1, -0.5], [1, -0.5], [-1, 0.5], [1, 0.5]]){
+    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.75, 0.12), wood);
+    leg.position.set(lx, 0.37, lz*1.1); t.add(leg);
+  }
+  t.rotation.y = rnd(Math.PI*2); t.position.set(x, 0, z); g.add(t);
+  addObstacle(x, z, 1.4);
+}
+function decorSandcastle(g, x, z){
+  const t = new THREE.Group();
+  const sand = new THREE.MeshLambertMaterial({ color:0xd9bd7f });
+  const base = new THREE.Mesh(new THREE.BoxGeometry(1.8, 1, 1.8), sand); base.position.y = 0.5; t.add(base);
+  for(const [tx, tz] of [[-0.8, -0.8], [0.8, -0.8], [-0.8, 0.8], [0.8, 0.8]]){
+    const tower = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.35, 1.5, 8), sand);
+    tower.position.set(tx, 0.75, tz); t.add(tower);
+    const cone = new THREE.Mesh(new THREE.ConeGeometry(0.35, 0.5, 8), new THREE.MeshLambertMaterial({ color:0xc8a860 }));
+    cone.position.set(tx, 1.75, tz); t.add(cone);
+  }
+  t.position.set(x, 0, z); g.add(t);
+  addObstacle(x, z, 1.4);
+}
+function decorIgloo(g, x, z){
+  const dome = new THREE.Mesh(new THREE.SphereGeometry(1.8, 12, 8, 0, Math.PI*2, 0, Math.PI/2),
+    new THREE.MeshLambertMaterial({ color:0xf4f8fc }));
+  dome.position.set(x, 0, z); g.add(dome);
+  const door = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.7, 1.2, 10, 1, false, 0, Math.PI),
+    new THREE.MeshLambertMaterial({ color:0xdde8f0 }));
+  door.rotation.z = Math.PI/2; door.rotation.y = Math.PI/2;
+  door.position.set(x, 0, z + 1.6); g.add(door);
+  addObstacle(x, z, 2.0);
+}
 
 // ============================================================ maps
+// maps are progressive difficulty tiers: diff = [hpMul, speedMul, countMul, scoreMul]
 const MAPS = [
   { name:'Backyard', emoji:'🏡', sky:['#3b5bd6','#c47ad0','#ff9d5c'], fog:0xff9d5c, fogFar:120,
     ground:['#4f9a44','#478c3d','#58a84c'], hemi:[0xffe0c0, 0x3a5a2a, 0.9], sun:0xffd0a0, sunI:0.8,
     cloud:0xffffff, fence:[0x8a6a4a, 0x9a7a55],
+    diff:[1, 1, 1, 1],
+    egg:{ emoji:'🍪', banner:'🍪 COOKIE! +1 ❤️', apply(){ if(player.hearts < 5) player.hearts++; else score += 50; } },
     build(g){
       decorHouse(g);
+      decorDoghouse(g, 8, 8); decorPicnic(g, -12, 5); decorPicnic(g, 14, -16);
       for(const [x,z] of [[-25,-22],[24,-26],[-28,18],[27,22],[12,-32],[-14,30],[33,-6],[-33,-4]]) decorTree(g, x, z);
       for(const [x,z] of [[-10,-14],[15,10],[-18,8],[8,-20],[20,-12],[-6,20]]) decorGrave(g, x, z);
     } },
   { name:'Graveyard', emoji:'🪦', sky:['#0b1030','#272057','#4a2a66'], fog:0x2a2347, fogFar:95,
     ground:['#39493a','#324232','#41523f'], hemi:[0x9aa8dd, 0x1c281c, 0.6], sun:0x8899ff, sunI:0.45,
     cloud:0x555577, fence:[0x4a4a55, 0x5a5a66],
+    diff:[1.3, 1.1, 1.25, 1.5],
+    egg:{ emoji:'👻', banner:'👻 GHOST SPEED!', apply(){ speedT = 12; } },
     build(g){
       decorMoon(g); decorCrypt(g);
+      for(const [x,z,r] of [[-14,-8,3.5],[10,16,3],[18,-18,4]]) decorPatch(g, x, z, r, 'slow', 0x2e2418); // mud pits
       for(const [x,z] of [[-24,-20],[22,-28],[-30,14],[28,20],[14,-30],[-12,32]]) decorTree(g, x, z, 0, 0x4a3a30, true);
       for(let i=0;i<14;i++) decorGrave(g, rnd(-30,30), rnd(-30,30));
       for(const [x,z] of [[-8,-10],[12,14],[-16,20],[18,-6],[5,-22]]) decorPumpkin(g, x, z);
@@ -431,15 +512,23 @@ const MAPS = [
   { name:'Beach', emoji:'🏖️', sky:['#2f9fe0','#7cc4ee','#ffe9b0'], fog:0xcfe6f2, fogFar:140,
     ground:['#e6cf96','#dec387','#f0dca8'], hemi:[0xffffff, 0xc0aa77, 1.0], sun:0xfff2cc, sunI:0.9,
     cloud:0xffffff, fence:[0xd8c8a8, 0xe8dcc0],
+    diff:[1.6, 1.2, 1.45, 2],
+    egg:{ emoji:'🥥', banner:'🥥 BUBBLE SHIELD!', apply(){ shieldT = 10; updateHUD(); } },
     build(g){
       decorWater(g);
+      for(const [x,z,r] of [[-8,-16,3.5],[16,6,4]]) decorPatch(g, x, z, r, 'slow', 0x3f9fd8); // tide pools
+      decorSandcastle(g, -18, 14); decorSandcastle(g, 10, -26);
       for(const [x,z] of [[-26,-20],[24,-24],[-30,16],[28,24],[10,-32],[-16,30],[34,-4]]) decorPalm(g, x, z);
       for(const [x,z] of [[-12,-10],[16,12],[-20,6]]) decorUmbrella(g, x, z);
     } },
   { name:'Snow', emoji:'⛄', sky:['#7fb2dd','#c8def0','#f4f8fc'], fog:0xe8f1f8, fogNear:30, fogFar:100,
     ground:['#eef3f8','#e2eaf2','#f8fbff'], hemi:[0xffffff, 0x8899aa, 0.95], sun:0xfff4e0, sunI:0.7,
     cloud:0xffffff, fence:[0x7a6a5a, 0x8a7a65],
+    diff:[2, 1.3, 1.7, 3],
+    egg:{ emoji:'☃️', banner:'☃️ BIG FREEZE!', apply(){ for(const z of zombies) z.frozen = 4; } },
     build(g){
+      for(const [x,z,r] of [[-10,-6,4],[12,12,4.5],[2,-24,3.5]]) decorPatch(g, x, z, r, 'ice', 0xbfe4f5); // ice patches
+      decorIgloo(g, -20, 10); decorIgloo(g, 18, -14);
       for(const [x,z] of [[-25,-22],[24,-26],[-28,18],[27,22],[12,-32],[-14,30],[33,-6],[-33,-4]]) decorPine(g, x, z, true);
       for(const [x,z] of [[-12,-12],[14,16]]) decorSnowman(g, x, z);
     } },
@@ -457,6 +546,7 @@ function buildMap(mi){
   envGroup = new THREE.Group();
   clouds.length = 0;
   obstacles.length = 0;
+  zones.length = 0;
   scene.fog.color.setHex(M.fog);
   scene.fog.near = M.fogNear || 40;
   scene.fog.far = M.fogFar || 120;
@@ -617,9 +707,13 @@ function makeZombie(type, wave){
   else if(type==='spitter'){ hp = 2 + (wave/4|0); speed = rnd(1.5,1.9); }
   else if(type==='brute'){ hp = 6 + Math.round(wave*0.7); speed = rnd(0.9,1.2); }
   else { hp = 25 + wave*6; speed = 1.15 + Math.min(wave*0.02, 0.5); }
+  // harder maps: tougher, faster, worth more
+  const D = MAPS[currentMap].diff;
+  hp = Math.max(1, Math.round(hp * D[0]));
+  speed *= D[1];
 
   zombies.push({ g, mats, armL, armR, legL, legR, type, s, hp, speed,
-    score:T.score, drop:T.drop, phase:rnd(Math.PI*2),
+    score:Math.round(T.score * D[3]), drop:T.drop, phase:rnd(Math.PI*2),
     frozen:0, flash:0, atkT:rnd(0.4,1), kbx:0, kbz:0,
     wanderT:0, wx:0, wz:0 });
 }
@@ -736,8 +830,9 @@ function spit(z){
 
 const pickups = [];
 function dropPickup(x, z, kind){
-  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: emojiTexture(kind === 'heart' ? '❤️' : '📦') }));
-  sp.scale.setScalar(0.9); sp.position.set(x, 1, z);
+  const emoji = kind === 'heart' ? '❤️' : kind === 'ammo' ? '📦' : MAPS[currentMap].egg.emoji;
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: emojiTexture(emoji) }));
+  sp.scale.setScalar(kind === 'egg' ? 1.1 : 0.9); sp.position.set(x, 1, z);
   scene.add(sp);
   pickups.push({ sp, t:rnd(Math.PI*2), kind });
 }
@@ -769,15 +864,14 @@ let score = 0, wave = 0, state = 'menu';
 let curWeapon = 0, unlocked = WEAPONS.map(w => w.unlock === 0);
 let ammo = WEAPONS.map(w => w.ammo || 0);
 let cheated = false;
+let speedT = 0, shieldT = 0;           // easter-egg powerup timers
+let py = 0, jvy = 0;                   // jump height & velocity
+let pvx = 0, pvz = 0;                  // player velocity (for slippery ice)
+let unlockedMaps = clamp(+(store.get('zr3d_maps') || 1) || 1, 1, MAPS.length);
 let firing = false, lastShot = 0, attackAnim = 0, punchHand = 0;
 let yaw = 0, pitch = 0, bobT = 0, shake = 0;
 let spawnQueue = [], spawnT = 0, waveBreakT = 0;
 let groanT = 2;
-// safe storage (localStorage can throw in sandboxed/private contexts)
-const store = {
-  get(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } },
-  set(k, v){ try{ localStorage.setItem(k, v); }catch(e){} },
-};
 let best = +(store.get('zr3d_best') || 0);
 
 const heartsEl = $('hearts'), scoreEl = $('score'), waveEl = $('waveLabel'), bannerEl = $('banner');
@@ -787,7 +881,8 @@ const lookStickEl = $('lookstick'), lookKnobEl = $('lookknob');
 const admin = { god:false };
 
 function updateHUD(){
-  heartsEl.textContent = '❤️'.repeat(player.hearts) + '🖤'.repeat(Math.max(0, 5 - player.hearts));
+  heartsEl.textContent = (shieldT > 0 ? '🫧 ' : '') +
+    '❤️'.repeat(player.hearts) + '🖤'.repeat(Math.max(0, 5 - player.hearts));
   scoreEl.textContent = score;
   waveEl.textContent = wave > 0 ? 'WAVE ' + wave : '';
 }
@@ -928,7 +1023,7 @@ function tryAttack(now){
   if(w.type !== 'melee'){ ammo[curWeapon]--; refreshWeaponBar(); }
 }
 function hurtPlayer(){
-  if(player.invuln > 0 || state !== 'playing' || admin.god) return;
+  if(player.invuln > 0 || state !== 'playing' || admin.god || shieldT > 0) return;
   player.hearts--;
   player.invuln = 1.0;
   shake = Math.min(shake + 0.4, 0.8);
@@ -943,7 +1038,17 @@ function hurtPlayer(){
 function startWave(w){
   wave = w;
   spawnQueue = [];
-  const n = 5 + w*2;
+  // reaching wave 5 on your newest map unlocks the next one
+  if(w >= 5 && currentMap === unlockedMaps - 1 && unlockedMaps < MAPS.length){
+    unlockedMaps++;
+    store.set('zr3d_maps', unlockedMaps);
+    refreshMapBtns();
+    const M2 = MAPS[unlockedMaps - 1];
+    setTimeout(() => { showBanner('NEW MAP UNLOCKED! ' + M2.emoji + ' ' + M2.name.toUpperCase()); SFX.unlock(); }, 2000);
+  }
+  // map-specific easter egg sometimes appears
+  if(Math.random() < 0.45) dropPickup(rnd(-20, 20), rnd(-20, 20), 'egg');
+  const n = Math.round((5 + w*2) * MAPS[currentMap].diff[2]);
   const runnerChance = w >= 3 ? Math.min(0.12 + w*0.03, 0.45) : 0;
   for(let i=0;i<n;i++) spawnQueue.push(Math.random() < runnerChance ? 'runner' : 'normal');
   if(w >= 4) for(let i=0;i<(w/3|0);i++) spawnQueue.splice((rnd(spawnQueue.length)|0), 0, 'brute');
@@ -977,13 +1082,16 @@ function startGame(){
   curWeapon = 0; unlocked = WEAPONS.map(w => w.unlock === 0);
   ammo = WEAPONS.map(w => w.ammo || 0);
   cheated = admin.god; // starting a run with god mode still on counts as admin use
+  speedT = 0; shieldT = 0;
+  py = 0; jvy = 0; pvx = 0; pvz = 0;
   $('nameRow').classList.add('hidden');
+  if(document.activeElement && document.activeElement.blur) document.activeElement.blur(); // Space must jump, not re-click PLAY
   for(const vm of viewModels) vm.visible = false;
   viewModels[0].visible = true;
   state = 'playing';
   overlayEl.classList.add('hidden');
   $('crosshair').classList.remove('hidden');
-  if(isTouch){ fireBtn.style.display = 'block'; lookStickEl.style.display = 'block'; }
+  if(isTouch){ fireBtn.style.display = 'block'; lookStickEl.style.display = 'block'; jumpBtn.style.display = 'block'; }
   refreshWeaponBar();
   updateHUD();
   startWave(1);
@@ -1000,6 +1108,7 @@ function gameOver(){
   $('crosshair').classList.add('hidden');
   fireBtn.style.display = 'none';
   lookStickEl.style.display = 'none';
+  jumpBtn.style.display = 'none';
   SFX.gameover();
   if(!cheated && score > best){ best = score; store.set('zr3d_best', best); }
   document.exitPointerLock && document.exitPointerLock();
@@ -1043,9 +1152,13 @@ function spawnMenuZombies(){
 
 // ============================================================ input
 const keys = {};
+function tryJump(){
+  if(state === 'playing' && py === 0){ jvy = 7; py = 0.001; SFX.jump(); }
+}
 addEventListener('keydown', e => {
   if(e.target && e.target.tagName === 'INPUT') return; // typing a name or password
   keys[e.code] = true;
+  if(e.code === 'Space'){ e.preventDefault(); tryJump(); }
   const n = +e.key;
   if(n >= 1 && n <= WEAPONS.length) selectWeapon(n-1);
   if(e.code === 'KeyQ' || e.code === 'KeyE'){
@@ -1137,6 +1250,10 @@ for(const ev of ['touchstart', 'mousedown']){
 for(const ev of ['touchend', 'touchcancel', 'mouseup']){
   fireBtn.addEventListener(ev, e => { e.preventDefault(); firing = false; }, { passive:false });
 }
+const jumpBtn = $('jumpBtn');
+for(const ev of ['touchstart', 'mousedown']){
+  jumpBtn.addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); ac(); tryJump(); }, { passive:false });
+}
 
 // look joystick (rate-based, console-FPS style) — sits next to the fire button
 let lookStickId = null, lookVec = { x:0, y:0 };
@@ -1219,6 +1336,13 @@ $('adSkip').addEventListener('click', () => {
   for(const z of [...zombies]) killZombie(z);
 });
 $('adScore').addEventListener('click', () => { cheated = true; addScore(1000); });
+$('adMaps').addEventListener('click', () => {
+  cheated = true;
+  unlockedMaps = MAPS.length;
+  store.set('zr3d_maps', unlockedMaps);
+  refreshMapBtns();
+  SFX.unlock();
+});
 
 // leaderboard save
 $('saveScore').addEventListener('click', () => {
@@ -1233,23 +1357,35 @@ $('saveScore').addEventListener('click', () => {
   SFX.unlock();
 });
 
-// map picker
+// map picker — maps unlock progressively (reach wave 5 on your newest map)
 const mbtns = [];
 MAPS.forEach((M, i) => {
   const b = document.createElement('button');
   b.className = 'mbtn';
-  b.innerHTML = `${M.emoji}<span class="mlabel">${M.name}</span>`;
-  b.addEventListener('click', () => { buildMap(i); refreshMapBtns(); });
+  b.addEventListener('click', () => {
+    if(i >= unlockedMaps) return;
+    buildMap(i);
+    refreshMapBtns();
+  });
   $('maprow').appendChild(b); mbtns.push(b);
 });
-function refreshMapBtns(){ mbtns.forEach((b, i) => b.classList.toggle('sel', i === currentMap)); }
+function refreshMapBtns(){
+  mbtns.forEach((b, i) => {
+    const M = MAPS[i], locked = i >= unlockedMaps;
+    b.classList.toggle('sel', !locked && i === currentMap);
+    b.classList.toggle('locked', locked);
+    b.innerHTML = locked
+      ? `🔒<span class="mlabel">${M.name}</span><span class="mdiff">wave 5 ⟶</span>`
+      : `${M.emoji}<span class="mlabel">${M.name}</span><span class="mdiff">${'💀'.repeat(i) || 'easy'}</span>`;
+  });
+}
 
 $('playBtn').addEventListener('click', () => { ac(); startGame(); });
 
 // initial overlay text
 overlaySub.innerHTML = isTouch
-  ? 'Pick a map, then pop those zombies!<br>🕹 Left stick: move &nbsp;•&nbsp; 👀 Right stick: look &nbsp;•&nbsp; 💥 Big button: attack<br>New weapons unlock as you score. Grab 📦 for ammo and ❤️ to heal!'
-  : 'Pick a map, then pop those zombies!<br>WASD: move &nbsp;•&nbsp; Mouse (or click &amp; drag): look &nbsp;•&nbsp; Click: attack &nbsp;•&nbsp; 1–9 / Q / E: weapons<br>New weapons unlock as you score. Grab 📦 for ammo and ❤️ to heal!';
+  ? 'Reach wave 5 to unlock the next map — each one is harder but worth more points!<br>🕹 Move &nbsp;•&nbsp; 👀 Look &nbsp;•&nbsp; 💥 Attack &nbsp;•&nbsp; 🦘 Jump over zombies!<br>Grab 📦 ammo, ❤️ hearts, and each map\'s secret treat!'
+  : 'Reach wave 5 to unlock the next map — each one is harder but worth more points!<br>WASD: move &nbsp;•&nbsp; Mouse: look &nbsp;•&nbsp; Click: attack &nbsp;•&nbsp; Space: jump &nbsp;•&nbsp; 1–9 / Q / E: weapons<br>Grab 📦 ammo, ❤️ hearts, and each map\'s secret treat!';
 
 addEventListener('resize', () => {
   camera.aspect = innerWidth/innerHeight;
@@ -1259,7 +1395,7 @@ addEventListener('resize', () => {
 
 // ============================================================ main loop
 let lastT = performance.now();
-buildMap(clamp(+(store.get('zr3d_map') || 0) || 0, 0, MAPS.length - 1));
+buildMap(clamp(+(store.get('zr3d_map') || 0) || 0, 0, unlockedMaps - 1));
 refreshMapBtns();
 renderBoard();
 spawnMenuZombies();
@@ -1279,9 +1415,20 @@ function loop(now){
     const mag = Math.hypot(mf, mr);
     if(mag > 1){ mf /= mag; mr /= mag; }
     const sy = Math.sin(yaw), cy = Math.cos(yaw);
-    const speed = 5.4;
-    player.x += (-sy*mf + cy*mr) * speed * dt;
-    player.z += (-cy*mf - sy*mr) * speed * dt;
+    // ground effects: mud/water slows you, ice is slippery (jumping clears both)
+    let speed = 5.4 * (speedT > 0 ? 1.5 : 1);
+    let onIce = false;
+    if(py < 0.3) for(const zn of zones){
+      if(Math.hypot(player.x - zn.x, player.z - zn.z) < zn.r){
+        if(zn.type === 'slow') speed *= 0.55;
+        else onIce = true;
+      }
+    }
+    const accel = onIce ? 3 : 40;
+    pvx += ((-sy*mf + cy*mr)*speed - pvx) * Math.min(1, accel*dt);
+    pvz += ((-cy*mf - sy*mr)*speed - pvz) * Math.min(1, accel*dt);
+    player.x += pvx * dt;
+    player.z += pvz * dt;
     player.x = clamp(player.x, -ARENA, ARENA);
     player.z = clamp(player.z, -ARENA, ARENA);
     for(const o of obstacles){
@@ -1289,8 +1436,16 @@ function loop(now){
       const d = Math.hypot(dx, dz), min = o.r + 0.4;
       if(d < min && d > 0.001){ player.x = o.x + dx/d*min; player.z = o.z + dz/d*min; }
     }
-    if(mag > 0.1) bobT += dt*9;
+    // jump physics
+    if(py > 0 || jvy > 0){
+      py += jvy * dt;
+      jvy -= 22 * dt;
+      if(py <= 0){ py = 0; jvy = 0; }
+    }
+    if(mag > 0.1 && py === 0) bobT += dt*9;
     if(player.invuln > 0) player.invuln -= dt;
+    if(speedT > 0) speedT -= dt;
+    if(shieldT > 0){ shieldT -= dt; if(shieldT <= 0) updateHUD(); }
     if(firing) tryAttack(now);
     // look joystick (rate-based)
     if(lookVec.x || lookVec.y){
@@ -1309,7 +1464,7 @@ function loop(now){
     camera.rotation.set(pitch, yaw, 0);
     camera.position.set(
       player.x + (shake>0 ? rnd(-shake,shake)*0.3 : 0),
-      1.6 + Math.sin(bobT)*0.045 + (shake>0 ? rnd(-shake,shake)*0.2 : 0),
+      1.6 + py + Math.sin(bobT)*0.045 + (shake>0 ? rnd(-shake,shake)*0.2 : 0),
       player.z + (shake>0 ? rnd(-shake,shake)*0.3 : 0));
   }
   if(shake > 0) shake = Math.max(0, shake - dt*2);
@@ -1388,12 +1543,12 @@ function loop(now){
           else if(d < 7){ dirx = -dx/d; dirz = -dz/d; }
         } else if(d > stop){ dirx = dx/d; dirz = dz/d; }
       }
-      // attack
+      // attack (a mid-jump player is out of swiping reach)
       z.atkT -= dt;
       if(z.frozen <= 0 && z.atkT <= 0){
         if(z.type === 'spitter'){
           if(d < 18){ z.atkT = 2.4; spit(z); }
-        } else if(d < stop + 0.45){
+        } else if(d < stop + 0.45 && py < 0.9){
           z.atkT = 1.1;
           hurtPlayer();
         }
@@ -1410,8 +1565,10 @@ function loop(now){
     }
 
     if(z.frozen > 0){ z.frozen -= dt; dirx = 0; dirz = 0; }
-    p.x += dirx * z.speed * dt + z.kbx * dt;
-    p.z += dirz * z.speed * dt + z.kbz * dt;
+    let zspeed = z.speed;
+    for(const zn of zones) if(zn.type === 'slow' && Math.hypot(p.x - zn.x, p.z - zn.z) < zn.r){ zspeed *= 0.55; break; }
+    p.x += dirx * zspeed * dt + z.kbx * dt;
+    p.z += dirz * zspeed * dt + z.kbz * dt;
     z.kbx *= Math.pow(0.02, dt); z.kbz *= Math.pow(0.02, dt);
     p.x = clamp(p.x, -ARENA, ARENA); p.z = clamp(p.z, -ARENA, ARENA);
 
@@ -1499,7 +1656,7 @@ function loop(now){
     s.life -= dt;
     let dead = s.life <= 0 || s.m.position.y <= 0.05;
     if(playing && Math.hypot(s.m.position.x - player.x, s.m.position.z - player.z) < 0.7
-       && Math.abs(s.m.position.y - 1.3) < 1.3){
+       && Math.abs(s.m.position.y - (1.3 + py)) < 1.3){
       hurtPlayer();
       dead = true;
     }
@@ -1543,6 +1700,11 @@ function loop(now){
           ammo[j] = Math.min(WEAPONS[j].maxAmmo, ammo[j] + Math.ceil(WEAPONS[j].maxAmmo*0.3));
         SFX.reload();
         refreshWeaponBar();
+      } else if(pk.kind === 'egg'){
+        const E = MAPS[currentMap].egg;
+        E.apply();
+        showBanner(E.banner);
+        SFX.unlock();
       } else {
         if(player.hearts < 5){ player.hearts++; } else { score += 25; }
         SFX.heart();
@@ -1563,7 +1725,9 @@ function loop(now){
 requestAnimationFrame(loop);
 
 // exposed for quick console testing
-window.__game = { startGame, get state(){ return state; }, get zombies(){ return zombies.length; }, addScore };
+window.__game = { startGame, addScore, tryJump,
+  get state(){ return state; }, get zombies(){ return zombies.length; },
+  get py(){ return py; }, get map(){ return currentMap; }, get maps(){ return unlockedMaps; } };
 </script>
 </body>
 </html>
