@@ -5,7 +5,15 @@ across the yard — punch them, bonk them, and blast them before they get you.
 Start with your fists and unlock bigger and sillier weapons as your score climbs.
 Kid-friendly: zombies pop into green goo, no blood.
 
+## Maps
+
+Pick on the title screen: 🏡 **Backyard** (sunset), 🪦 **Graveyard** (spooky night
+with pumpkins), 🏖️ **Beach** (palms and ocean), ⛄ **Snow** (pines and snowmen).
+
 ## Weapons (unlock by scoring points)
+
+Guns use ammo — grab 📦 boxes dropped by zombies (and a top-up every cleared
+wave). Fists and bat never run out.
 
 | Weapon | Unlocks at |
 |---|---|
@@ -13,16 +21,28 @@ Kid-friendly: zombies pop into green goo, no blood.
 | 🏏 Baseball Bat | 80 |
 | 🔫 Slime Blaster | 220 |
 | ⚡ Zap Zapper (rapid fire) | 450 |
-| 🍇 Goo Shotgun (5-pellet spread) | 800 |
-| ❄️ Freeze Ray (freezes zombies) | 1300 |
-| 🚀 Boom Launcher (explosions!) | 1900 |
-| 💫 Mega Laser (pierces whole rows) | 2700 |
-| ☄️ Star Storm (meteors rain down) | 3800 |
+| 🏀 Bounce Ball Gun (bounces through crowds) | 700 |
+| 🍇 Goo Shotgun (5-pellet spread) | 1000 |
+| 🐱 Cat Slingshot (MEOW, big knockback) | 1400 |
+| ❄️ Freeze Ray (freezes zombies) | 1800 |
+| 🌮 Taco Cannon (splash-damage tacos) | 2300 |
+| 🚀 Boom Launcher (explosions!) | 2900 |
+| 🍔 Burger Blaster (plows through rows) | 3600 |
+| 💫 Mega Laser (pierces everything in the line) | 4400 |
+| 💨 Fart Cannon (cone of stink + mega knockback) | 5300 |
+| ☄️ Star Storm (meteors rain down) | 6500 |
 
 Grab ❤️ hearts dropped by big zombies to heal. Boss zombies every 5th wave
 (two at wave 10+!). Watch out for yellow **spitter** zombies from wave 5 —
 they lob goo at you from a distance. Waves get bigger, faster, and meaner
 as you go.
+
+## Leaderboard & admin mode
+
+Top-10 scores are saved on the device (each iPad/computer keeps its own list) —
+enter a name after a good run. The ⚙️ button opens admin mode (password
+protected): god mode, all weapons, full ammo, skip wave, and more. Using any
+admin tool disqualifies that run from the leaderboard.
 
 ## Controls
 
