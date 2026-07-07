@@ -7,8 +7,10 @@ Kid-friendly: zombies pop into green goo, no blood.
 
 ## Maps (progressive difficulty!)
 
-Reach **wave 5** on your newest map to unlock the next one. Harder maps have
-tougher, faster, bigger hordes — but every zombie is worth more points.
+You travel as you play: **beat the boss every 5th wave and the game moves you
+to the next map** (and unlocks it as a starting choice on the title screen).
+After the last map it loops back around. Harder maps have tougher, faster,
+bigger hordes — but every zombie is worth more points.
 
 | Map | Difficulty | Hazards | Secret treat |
 |---|---|---|---|
@@ -39,7 +41,7 @@ wave). Fists and bat never run out.
 | ⚡ Zap Zapper (rapid fire) | 450 |
 | 🏀 Bounce Ball Gun (bounces through crowds) | 700 |
 | 🍇 Goo Shotgun (5-pellet spread) | 1000 |
-| 🐱 Cat Slingshot (MEOW, big knockback) | 1400 |
+| 🐱 Cat Cannon (launches a helper cat that hunts zombies!) | 1400 |
 | ❄️ Freeze Ray (freezes zombies) | 1800 |
 | 🌮 Taco Cannon (splash-damage tacos) | 2300 |
 | 🚀 Boom Launcher (explosions!) | 2900 |

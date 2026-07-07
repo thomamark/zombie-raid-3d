@@ -572,7 +572,6 @@ function buildMap(mi){
   }
   M.build(envGroup);
   scene.add(envGroup);
-  store.set('zr3d_map', mi);
 }
 
 // ============================================================ weapons
@@ -583,7 +582,7 @@ const WEAPONS = [
   { name:'Zap Zapper',      emoji:'⚡', type:'gun', dmg:1, rate:120, speed:44, size:.11, color:0x66e0ff, unlock:450, ammo:120, maxAmmo:180 },
   { name:'Bounce Ball Gun', emoji:'🏀', type:'gun', dmg:2, rate:450, speed:22, size:.3, color:0xff8833, gravity:true, bounce:4, pierce:true, sprite:'🏀', unlock:700, ammo:25, maxAmmo:40 },
   { name:'Goo Shotgun',     emoji:'🍇', type:'gun', dmg:2, rate:650, speed:28, size:.14, color:0xb45fd9, pellets:5, spread:0.13, unlock:1000, ammo:24, maxAmmo:36 },
-  { name:'Cat Slingshot',   emoji:'🐱', type:'gun', dmg:7, rate:800, speed:26, size:.5, color:0xffaa55, gravity:true, knock:10, sprite:'🐱', meow:true, unlock:1400, ammo:12, maxAmmo:18 },
+  { name:'Cat Cannon',      emoji:'🐱', type:'gun', dmg:2, rate:600, color:0xffaa55, cat:true, unlock:1400, ammo:1, maxAmmo:1 },
   { name:'Freeze Ray',      emoji:'❄️', type:'gun', dmg:2, rate:360, speed:36, size:.15, color:0xbfe9ff, freeze:2.6, unlock:1800, ammo:25, maxAmmo:40 },
   { name:'Taco Cannon',     emoji:'🌮', type:'gun', dmg:4, rate:500, speed:24, size:.45, color:0xffcc66, gravity:true, blast:2.2, sprite:'🌮', unlock:2300, ammo:30, maxAmmo:45 },
   { name:'Boom Launcher',   emoji:'🚀', type:'gun', dmg:8, rate:850, speed:24, size:.24, color:0xff9040, blast:4, gravity:true, unlock:2900, ammo:10, maxAmmo:15 },
@@ -812,6 +811,44 @@ function beamAttack(w){
   }
 }
 
+// ---- pet cat (Cat Cannon fires one helper cat that hunts zombies)
+const cats = [];
+function makeCatMesh(){
+  const g = new THREE.Group();
+  const orange = new THREE.MeshLambertMaterial({ color:0xf59c42 });
+  const dark = new THREE.MeshLambertMaterial({ color:0xd97e28 });
+  const body = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.3, 0.66), orange); body.position.y = 0.42; g.add(body);
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.26, 0.26), orange); head.position.set(0, 0.62, 0.42); g.add(head);
+  const eyeMat = new THREE.MeshLambertMaterial({ color:0x224411 });
+  for(const ex of [-0.09, 0.09]){
+    const ear = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.14, 4), dark); ear.position.set(ex, 0.8, 0.42); g.add(ear);
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.032, 6, 6), eyeMat); eye.position.set(ex*0.6, 0.65, 0.56); g.add(eye);
+  }
+  const nose = new THREE.Mesh(new THREE.SphereGeometry(0.026, 6, 6),
+    new THREE.MeshLambertMaterial({ color:0xff7788 })); nose.position.set(0, 0.59, 0.56); g.add(nose);
+  const tail = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.05, 0.5, 6), dark);
+  tail.position.set(0, 0.64, -0.42); tail.rotation.x = -0.7; g.add(tail);
+  const legGeo = new THREE.BoxGeometry(0.08, 0.32, 0.08); legGeo.translate(0, -0.16, 0);
+  const legs = [];
+  for(const [lx, lz] of [[-0.12, 0.24], [0.12, 0.24], [-0.12, -0.24], [0.12, -0.24]]){
+    const leg = new THREE.Mesh(legGeo, orange); leg.position.set(lx, 0.32, lz); g.add(leg); legs.push(leg);
+  }
+  const blob = new THREE.Mesh(blobGeo, blobMat);
+  blob.rotation.x = -Math.PI/2; blob.position.y = 0.02; blob.scale.setScalar(0.6); g.add(blob);
+  return { g, legs, tail };
+}
+function launchCat(){
+  for(const c of cats) scene.remove(c.g); // only one cat at a time
+  cats.length = 0;
+  const dir = new THREE.Vector3(); camera.getWorldDirection(dir);
+  const c = makeCatMesh();
+  c.g.position.set(
+    clamp(player.x + dir.x*2, -ARENA, ARENA), 0,
+    clamp(player.z + dir.z*2, -ARENA, ARENA));
+  scene.add(c.g);
+  cats.push({ g:c.g, legs:c.legs, tail:c.tail, life:14, atkT:0.3, meowT:rnd(1.5,3), phase:0 });
+}
+
 // spitter goo shots
 const enemyShots = [];
 function spit(z){
@@ -868,6 +905,7 @@ let speedT = 0, shieldT = 0;           // easter-egg powerup timers
 let py = 0, jvy = 0;                   // jump height & velocity
 let pvx = 0, pvz = 0;                  // player velocity (for slippery ice)
 let unlockedMaps = clamp(+(store.get('zr3d_maps') || 1) || 1, 1, MAPS.length);
+let runStartMap = 0;                   // map the current run began on
 let firing = false, lastShot = 0, attackAnim = 0, punchHand = 0;
 let yaw = 0, pitch = 0, bobT = 0, shake = 0;
 let spawnQueue = [], spawnT = 0, waveBreakT = 0;
@@ -1005,6 +1043,7 @@ function tryAttack(now){
     coneBlast(w);
   } else {
     if(w.meteor){ spawnMeteors(w); SFX.meteor(); }
+    else if(w.cat){ launchCat(); SFX.meow(); }
     else if(w.pellets){
       for(let i=0;i<w.pellets;i++) shootProjectile(w, w.spread);
       SFX.shotgun();
@@ -1038,13 +1077,19 @@ function hurtPlayer(){
 function startWave(w){
   wave = w;
   spawnQueue = [];
-  // reaching wave 5 on your newest map unlocks the next one
-  if(w >= 5 && currentMap === unlockedMaps - 1 && unlockedMaps < MAPS.length){
-    unlockedMaps++;
-    store.set('zr3d_maps', unlockedMaps);
-    refreshMapBtns();
-    const M2 = MAPS[unlockedMaps - 1];
-    setTimeout(() => { showBanner('NEW MAP UNLOCKED! ' + M2.emoji + ' ' + M2.name.toUpperCase()); SFX.unlock(); }, 2000);
+  // beat the boss wave, travel to the next map (cycles after the last one)
+  const mi = (runStartMap + ((w - 1) / 5 | 0)) % MAPS.length;
+  let traveled = false;
+  if(mi !== currentMap){
+    buildMap(mi);
+    traveled = true;
+    for(const pk of pickups) scene.remove(pk.sp); // old map's treats don't travel
+    pickups.length = 0;
+    if(mi + 1 > unlockedMaps){
+      unlockedMaps = mi + 1;
+      store.set('zr3d_maps', unlockedMaps);
+      refreshMapBtns();
+    }
   }
   // map-specific easter egg sometimes appears
   if(Math.random() < 0.45) dropPickup(rnd(-20, 20), rnd(-20, 20), 'egg');
@@ -1055,8 +1100,10 @@ function startWave(w){
   if(w >= 5) for(let i=0;i<(w/3|0);i++) spawnQueue.splice((rnd(spawnQueue.length)|0), 0, 'spitter');
   if(w % 5 === 0) for(let i=0;i<1+(w/10|0);i++) spawnQueue.push('boss');
   spawnT = 0.5;
-  showBanner(w % 5 === 0 ? '💀 BOSS WAVE ' + w + '! 💀' : 'WAVE ' + w);
-  SFX.wave();
+  const M = MAPS[currentMap];
+  showBanner(traveled ? '🚌 ' + M.emoji + ' ' + M.name.toUpperCase() + '! WAVE ' + w
+    : w % 5 === 0 ? '💀 BOSS WAVE ' + w + '! 💀' : 'WAVE ' + w);
+  if(traveled) SFX.unlock(); else SFX.wave();
   updateHUD();
 }
 
@@ -1071,6 +1118,8 @@ function clearEntities(){
   flashes.length = 0;
   for(const s of enemyShots) scene.remove(s.m);
   enemyShots.length = 0;
+  for(const c of cats) scene.remove(c.g);
+  cats.length = 0;
   beamUntil = 0;
   beamMesh.visible = false;
 }
@@ -1082,6 +1131,7 @@ function startGame(){
   curWeapon = 0; unlocked = WEAPONS.map(w => w.unlock === 0);
   ammo = WEAPONS.map(w => w.ammo || 0);
   cheated = admin.god; // starting a run with god mode still on counts as admin use
+  runStartMap = currentMap;
   speedT = 0; shieldT = 0;
   py = 0; jvy = 0; pvx = 0; pvz = 0;
   $('nameRow').classList.add('hidden');
@@ -1365,6 +1415,7 @@ MAPS.forEach((M, i) => {
   b.addEventListener('click', () => {
     if(i >= unlockedMaps) return;
     buildMap(i);
+    store.set('zr3d_map', i);
     refreshMapBtns();
   });
   $('maprow').appendChild(b); mbtns.push(b);
@@ -1375,7 +1426,7 @@ function refreshMapBtns(){
     b.classList.toggle('sel', !locked && i === currentMap);
     b.classList.toggle('locked', locked);
     b.innerHTML = locked
-      ? `🔒<span class="mlabel">${M.name}</span><span class="mdiff">wave 5 ⟶</span>`
+      ? `🔒<span class="mlabel">${M.name}</span><span class="mdiff">beat boss ⟶</span>`
       : `${M.emoji}<span class="mlabel">${M.name}</span><span class="mdiff">${'💀'.repeat(i) || 'easy'}</span>`;
   });
 }
@@ -1384,8 +1435,8 @@ $('playBtn').addEventListener('click', () => { ac(); startGame(); });
 
 // initial overlay text
 overlaySub.innerHTML = isTouch
-  ? 'Reach wave 5 to unlock the next map — each one is harder but worth more points!<br>🕹 Move &nbsp;•&nbsp; 👀 Look &nbsp;•&nbsp; 💥 Attack &nbsp;•&nbsp; 🦘 Jump over zombies!<br>Grab 📦 ammo, ❤️ hearts, and each map\'s secret treat!'
-  : 'Reach wave 5 to unlock the next map — each one is harder but worth more points!<br>WASD: move &nbsp;•&nbsp; Mouse: look &nbsp;•&nbsp; Click: attack &nbsp;•&nbsp; Space: jump &nbsp;•&nbsp; 1–9 / Q / E: weapons<br>Grab 📦 ammo, ❤️ hearts, and each map\'s secret treat!';
+  ? 'Beat each boss wave to travel to the next map — harder maps, more points!<br>🕹 Move &nbsp;•&nbsp; 👀 Look &nbsp;•&nbsp; 💥 Attack &nbsp;•&nbsp; 🦘 Jump over zombies!<br>Grab 📦 ammo, ❤️ hearts, and each map\'s secret treat!'
+  : 'Beat each boss wave to travel to the next map — harder maps, more points!<br>WASD: move &nbsp;•&nbsp; Mouse: look &nbsp;•&nbsp; Click: attack &nbsp;•&nbsp; Space: jump &nbsp;•&nbsp; 1–9 / Q / E: weapons<br>Grab 📦 ammo, ❤️ hearts, and each map\'s secret treat!';
 
 addEventListener('resize', () => {
   camera.aspect = innerWidth/innerHeight;
@@ -1649,6 +1700,56 @@ function loop(now){
     if(dead){ scene.remove(pr.m); pr.m.material.dispose(); projectiles.splice(i, 1); }
   }
 
+  // ---- pet cat
+  for(let i = cats.length-1; i >= 0; i--){
+    const c = cats[i];
+    c.life -= dt;
+    if(c.life <= 0){
+      burst(c.g.position.x, 0.5, c.g.position.z, 0xf59c42, 8, 3);
+      scene.remove(c.g);
+      cats.splice(i, 1);
+      // the cat comes home: cannon reloads
+      const wi = WEAPONS.findIndex(w => w.cat);
+      if(unlocked[wi] && ammo[wi] < WEAPONS[wi].maxAmmo){
+        ammo[wi] = WEAPONS[wi].maxAmmo;
+        refreshWeaponBar();
+        if(state === 'playing') SFX.meow();
+      }
+      continue;
+    }
+    // chase the nearest zombie; otherwise orbit the player
+    let target = null, bd = 1e9;
+    for(const z of zombies){
+      const d = Math.hypot(z.g.position.x - c.g.position.x, z.g.position.z - c.g.position.z);
+      if(d < bd){ bd = d; target = z; }
+    }
+    let tx, tz;
+    if(target){ tx = target.g.position.x; tz = target.g.position.z; }
+    else { tx = player.x + Math.cos(now*0.001)*3; tz = player.z + Math.sin(now*0.001)*3; }
+    const dx = tx - c.g.position.x, dz = tz - c.g.position.z;
+    const d = Math.hypot(dx, dz) || 1;
+    const stopAt = target ? 0.6 + target.s*0.4 : 0.5;
+    if(d > stopAt){
+      c.g.position.x = clamp(c.g.position.x + dx/d * 7 * dt, -ARENA, ARENA);
+      c.g.position.z = clamp(c.g.position.z + dz/d * 7 * dt, -ARENA, ARENA);
+    }
+    c.g.rotation.y = Math.atan2(dx, dz);
+    c.phase += dt * 14;
+    for(let l=0;l<c.legs.length;l++) c.legs[l].rotation.x = Math.sin(c.phase + (l%2)*Math.PI) * 0.7;
+    c.tail.rotation.z = Math.sin(c.phase*0.4) * 0.25;
+    c.g.position.y = Math.abs(Math.sin(c.phase*0.5)) * 0.06;
+    // pounce!
+    c.atkT -= dt;
+    if(target && bd < stopAt + 0.5 && c.atkT <= 0){
+      c.atkT = 0.5;
+      const w = WEAPONS[WEAPONS.findIndex(w2 => w2.cat)];
+      damageZombie(target, w.dmg, 2.5, dx/d, dz/d);
+      burst(c.g.position.x + dx/d*0.4, 0.8, c.g.position.z + dz/d*0.4, 0xffcc88, 4, 2.5);
+    }
+    c.meowT -= dt;
+    if(c.meowT <= 0){ c.meowT = rnd(2.5, 5); SFX.meow(); }
+  }
+
   // ---- enemy goo shots
   for(let i = enemyShots.length-1; i >= 0; i--){
     const s = enemyShots[i];
@@ -1725,9 +1826,10 @@ function loop(now){
 requestAnimationFrame(loop);
 
 // exposed for quick console testing
-window.__game = { startGame, addScore, tryJump,
+window.__game = { startGame, addScore, tryJump, startWave, launchCat,
   get state(){ return state; }, get zombies(){ return zombies.length; },
-  get py(){ return py; }, get map(){ return currentMap; }, get maps(){ return unlockedMaps; } };
+  get py(){ return py; }, get map(){ return currentMap; }, get maps(){ return unlockedMaps; },
+  get cats(){ return cats.length; } };
 </script>
 </body>
 </html>
