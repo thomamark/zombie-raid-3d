@@ -41,7 +41,7 @@ wave). Fists and bat never run out.
 | ⚡ Zap Zapper (rapid fire) | 450 |
 | 🏀 Bounce Ball Gun (bounces through crowds) | 700 |
 | 🍇 Goo Shotgun (5-pellet spread) | 1000 |
-| 🐱 Cat Cannon (launches a helper cat that hunts zombies!) | 1400 |
+| 🐱 Cat Cannon (launches a helper cat — one at a time, and it needs a nap between missions) | 1400 |
 | ❄️ Freeze Ray (freezes zombies) | 1800 |
 | 🌮 Taco Cannon (splash-damage tacos) | 2300 |
 | 🚀 Boom Launcher (explosions!) | 2900 |
@@ -55,12 +55,23 @@ Grab ❤️ hearts dropped by big zombies to heal. Boss zombies every 5th wave
 they lob goo at you from a distance. Waves get bigger, faster, and meaner
 as you go.
 
-## Leaderboard & admin mode
+## Leaderboard, achievements & admin mode
 
-Top-10 scores are saved on the device (each iPad/computer keeps its own list) —
-enter a name after a good run. The ⚙️ button opens admin mode (password
-protected): god mode, all weapons, full ammo, skip wave, and more. Using any
-admin tool disqualifies that run from the leaderboard.
+The top-10 leaderboard shows on the title screen, the game-over screen, and as
+a mini top-3 under your hearts while you play. It can be **global across all
+players**: set the `BOARD_API` constant in `index.html` to a shared JSON store
+URL (supporting GET + PUT of a JSON array) and every device reads/writes the
+same board, falling back to the device-local copy when offline.
+
+**Achievements** (14 of them — shown on the title screen): from 🧟 First Pop
+and 👑 Boss Buster to 🚌 World Tour (visit all maps in one run), 🛡 Perfect
+Wave, and 💨 Toot Trooper. Saved per device.
+
+Enter a name after a good run to get on the board. The ⚙️ button opens admin mode (password
+protected): whoever is playing right now receives whatever benefits the admin
+chooses — god mode, all weapons, full ammo, full hearts, skip wave, all maps.
+Admin tools can never add score: skipped waves pop the zombies for zero points
+and pay no wave bonus, and there is no score-granting tool.
 
 ## Controls
 
