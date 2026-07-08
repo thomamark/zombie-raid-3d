@@ -129,9 +129,17 @@ Find your Mac's IP with: `ipconfig getifaddr en0`
 
 ## Updating the game
 
-Whenever the game changes, just **refresh Safari** on the iPad — no need to
-restart the server. (If a change doesn't show up, close the Safari tab and
-reopen the address, since iOS caches aggressively.)
+The game **auto-updates**: while it's open it quietly checks the server for a
+newer build and reloads to it when you're not mid-round (on the title/game-over
+screen, or when you reopen the app). The small `v#` in the bottom-left corner
+shows which build you're on. No cache-clearing needed anymore.
+
+One catch: a device still running a version from *before* auto-update existed
+needs a single manual refresh to pick up the auto-updater; after that it's
+hands-off.
+
+**For developers:** bump the `const BUILD = N` number near the top of
+`index.html` by 1 on every deploy — that's the signal other devices poll for.
 
 ## Files
 
