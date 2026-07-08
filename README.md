@@ -78,8 +78,9 @@ Wave, 💖 Best Friend, 🎈 To The Moon, 🍌 Going Bananas, 🪩 Disco Fever, 
 Enter a name after a good run to get on the board. The ⚙️ button opens admin mode (password
 protected): whoever is playing right now receives whatever benefits the admin
 chooses — god mode, all weapons, full ammo, full hearts, skip wave, all maps.
-Admin tools can never add score: skipped waves pop the zombies for zero points
-and pay no wave bonus, and there is no score-granting tool.
+**Unlocking admin makes that run "just for fun":** it no longer counts for the
+high score, the leaderboard, or achievements. Admin re-locks every round, so
+the password must be re-entered each game.
 
 ## Controls
 

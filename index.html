@@ -950,6 +950,7 @@ let score = 0, wave = 0, state = 'menu', paused = false;
 let curWeapon = 0, unlocked = WEAPONS.map(w => w.unlock === 0);
 let ammo = WEAPONS.map(w => w.ammo || 0);
 let skippedWave = false;               // admin skip: wave advances but pays no points
+let adminUsed = false;                 // admin unlocked this run → no high score / achievements
 let catNapT = 0;                       // cooldown before the cat cannon reloads
 let waveHurt = false;                  // took damage this wave (for Perfect Wave)
 let runVisited = new Set();            // maps visited this run (for World Tour)
@@ -1264,6 +1265,7 @@ function startGame(){
   adminPanel.classList.add('hidden');
   // re-lock admin every round: the password must be entered again
   adminAuthed = false;
+  adminUsed = false;
   admin.god = false;
   $('adminLock').classList.remove('hidden');
   $('adminTools').classList.add('hidden');
@@ -1300,14 +1302,15 @@ function gameOver(){
   lookStickEl.style.display = 'none';
   jumpBtn.style.display = 'none';
   SFX.gameover();
-  if(score > best){ best = score; store.set('zr3d_best', best); }
+  if(!adminUsed && score > best){ best = score; store.set('zr3d_best', best); }
   document.exitPointerLock && document.exitPointerLock();
   setTimeout(() => {
     overlayEl.querySelector('h1').textContent = '💀 GAME OVER 💀';
-    overlaySub.textContent = 'The zombies got you on wave ' + wave + '!';
+    overlaySub.innerHTML = 'The zombies got you on wave ' + wave + '!' +
+      (adminUsed ? '<br>⚙️ Admin was used — this run doesn\'t count for scores or achievements.' : '');
     overlayScore.classList.remove('hidden');
     overlayScore.textContent = '⭐ Score: ' + score + '   🏆 Best: ' + best;
-    if(score > 0 && qualifiesForBoard(score)){
+    if(!adminUsed && score > 0 && qualifiesForBoard(score)){
       $('nameRow').classList.remove('hidden');
       $('nameInput').value = store.get('zr3d_name') || '';
     }
@@ -1425,6 +1428,7 @@ let stats = { kills:0, jumps:0 };
 try{ stats = Object.assign(stats, JSON.parse(store.get('zr3d_stats') || '{}')); }catch(e){}
 function saveStats(){ store.set('zr3d_stats', JSON.stringify(stats)); }
 function unlockAch(id){
+  if(adminUsed) return;   // admin runs don't earn achievements
   if(achieved[id]) return;
   const a = ACHIEVEMENTS.find(x => x.id === id);
   if(!a) return;
@@ -1602,6 +1606,8 @@ adminBtn.addEventListener('click', e => {
 $('adminGo').addEventListener('click', () => {
   if($('adminPass').value === 'dustinxyz'){
     adminAuthed = true;
+    adminUsed = true;   // unlocking admin makes this run "just for fun" — no scores/achievements
+
     $('adminLock').classList.add('hidden');
     $('adminTools').classList.remove('hidden');
     SFX.unlock();
