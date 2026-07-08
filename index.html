@@ -1262,6 +1262,14 @@ function startGame(){
   paused = false;
   $('pauseLabel').classList.add('hidden');
   adminPanel.classList.add('hidden');
+  // re-lock admin every round: the password must be entered again
+  adminAuthed = false;
+  admin.god = false;
+  $('adminLock').classList.remove('hidden');
+  $('adminTools').classList.add('hidden');
+  $('adminPass').value = '';
+  $('adGod').classList.remove('on');
+  $('adGod').textContent = '🛡 God Mode';
   runStartMap = currentMap;
   runVisited = new Set([currentMap]);
   speedT = 0; shieldT = 0;
