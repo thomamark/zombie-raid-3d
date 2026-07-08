@@ -1232,22 +1232,22 @@ function gameOver(){
   }, 900);
 }
 
-// ---- leaderboard: global via jsonbin.io when configured, with the local copy
-// as cache/fallback when offline. Admin tools can't add score, so all runs count.
-const JSONBIN_BIN = ''; // jsonbin.io bin id
-const JSONBIN_KEY = ''; // jsonbin.io X-Master-Key
-const boardOn = () => !!(JSONBIN_BIN && JSONBIN_KEY);
+// ---- leaderboard: global via Firebase Realtime Database, with the local copy
+// as cache/fallback when offline. Each device appends its own entry (atomic
+// POST, no read-merge-write race). Admin tools can't add score, so all runs count.
+const FIREBASE_DB = 'https://zombie-raid-3d-default-rtdb.firebaseio.com';
+const boardOn = () => !!FIREBASE_DB;
 async function boardRead(){
-  const r = await fetch('https://api.jsonbin.io/v3/b/' + JSONBIN_BIN + '/latest',
-    { headers: { 'X-Master-Key': JSONBIN_KEY, 'X-Bin-Meta': 'false' } });
+  const r = await fetch(FIREBASE_DB + '/scores.json');
   if(!r.ok) throw new Error(r.status);
   const data = await r.json();
-  return Array.isArray(data) ? data : [];
+  if(!data) return [];
+  return Object.values(data).filter(e => e && typeof e.s === 'number' && e.n);
 }
-async function boardWrite(data){
-  await fetch('https://api.jsonbin.io/v3/b/' + JSONBIN_BIN,
-    { method:'PUT', headers:{ 'Content-Type':'application/json', 'X-Master-Key': JSONBIN_KEY },
-      body: JSON.stringify(data) });
+async function boardAppend(entry){
+  const r = await fetch(FIREBASE_DB + '/scores.json',
+    { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify(entry) });
+  if(!r.ok) throw new Error(r.status);
 }
 function esc(s){ return String(s).replace(/[<>&]/g, ''); }
 function readCachedBoard(){
@@ -1281,10 +1281,9 @@ async function submitScore(entry){
   renderBoard();
   if(!boardOn()) return;
   try{
-    // re-read then write back so we don't clobber other players' fresh scores
-    const remote = await boardRead();
+    await boardAppend(entry);            // atomic append — never clobbers others
+    const remote = await boardRead();     // re-read the merged global board
     board = mergeBoard(remote.concat(board));
-    await boardWrite(board);
     boardGlobal = true;
     cacheBoard();
     renderBoard();

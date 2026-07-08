@@ -57,11 +57,12 @@ as you go.
 
 ## Leaderboard, achievements & admin mode
 
-The top-10 leaderboard shows on the title screen, the game-over screen, and as
-a mini top-3 under your hearts while you play. It can be **global across all
-players**: set the `BOARD_API` constant in `index.html` to a shared JSON store
-URL (supporting GET + PUT of a JSON array) and every device reads/writes the
-same board, falling back to the device-local copy when offline.
+The top-10 leaderboard is **global across all players** — backed by a Firebase
+Realtime Database (`FIREBASE_DB` in `index.html`). Every device appends its own
+scores and reads the shared board, so a score set on one iPad shows up
+everywhere. It shows on the title screen, the game-over screen, and as a mini
+top-3 under your hearts while you play, and falls back to a device-local copy
+when offline.
 
 **Achievements** (14 of them — shown on the title screen): from 🧟 First Pop
 and 👑 Boss Buster to 🚌 World Tour (visit all maps in one run), 🛡 Perfect
