@@ -49,6 +49,12 @@ wave). Fists and bat never run out.
 | 💫 Mega Laser (pierces everything in the line) | 4400 |
 | 💨 Fart Cannon (cone of stink + mega knockback) | 5300 |
 | ☄️ Star Storm (meteors rain down) | 6500 |
+| 💖 Friendship Gun (turns a zombie into an ally that fights for you!) | 7000 |
+| 🎈 Antigravity Gun (sends zombies flying off into the sky) | 8000 |
+| 🪄 Metamorphosis Gun (turns a zombie into a harmless banana) | 9000 |
+| 🍌 Banana Peel Gun (drops peels that zombies slip on) | 10000 |
+| 🪩 Disco Ball Gun (stuns a whole crowd in a dance freeze) | 11000 |
+| 🔬 Shrink Ray (shrinks zombies down to fun size) | 12000 |
 
 Grab ❤️ hearts dropped by big zombies to heal. Boss zombies every 5th wave
 (two at wave 10+!). Watch out for yellow **spitter** zombies from wave 5 —
@@ -64,9 +70,10 @@ everywhere. It shows on the title screen, the game-over screen, and as a mini
 top-3 under your hearts while you play, and falls back to a device-local copy
 when offline.
 
-**Achievements** (14 of them — shown on the title screen): from 🧟 First Pop
+**Achievements** (23 of them — shown on the title screen): from 🧟 First Pop
 and 👑 Boss Buster to 🚌 World Tour (visit all maps in one run), 🛡 Perfect
-Wave, and 💨 Toot Trooper. Saved per device.
+Wave, 💖 Best Friend, 🎈 To The Moon, 🍌 Going Bananas, 🪩 Disco Fever, and
+🌟 1000 Pops. Saved per device.
 
 Enter a name after a good run to get on the board. The ⚙️ button opens admin mode (password
 protected): whoever is playing right now receives whatever benefits the admin
