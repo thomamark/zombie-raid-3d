@@ -197,7 +197,7 @@
 'use strict';
 // Build number — BUMP THIS BY 1 ON EVERY DEPLOY. The running game polls the
 // server for a higher BUILD and auto-reloads to it (see auto-update, bottom).
-const BUILD = 3;
+const BUILD = 4;
 // ============================================================ helpers
 const rnd = (a=1,b) => b===undefined ? Math.random()*a : a+Math.random()*(b-a);
 const clamp = (v,a,b) => v<a?a : v>b?b : v;
@@ -269,6 +269,7 @@ const SFX = {
   plane(){ tone(120, 90, 1.6, 'sawtooth', .16); noiseBurst(1.4, .12, 500); },
   airstrike(){ tone(1600, 200, .7, 'sine', .12); tone(90, 40, .5, 'sine', .4, .6); noiseBurst(.5,.4,400,.6); },
   cluck(){ tone(900, 1300, .05, 'square', .16); tone(1300, 700, .08, 'square', .14, .05); },
+  radio(){ noiseBurst(.05, .1, 2500); tone(1200, 1200, .05, 'square', .12, .06); tone(900, 900, .05, 'square', .12, .13); },
   friend(){ tone(660, 880, .1, 'sine', .18); tone(880, 1100, .12, 'sine', .18, .09); },
   whoosh(){ tone(200, 1400, .4, 'sine', .16); },
   magic(){ [880,1175,1568,2093].forEach((f,i)=>tone(f,f*1.2,.09,'sine',.12,i*0.05)); },
@@ -636,17 +637,17 @@ const WEAPONS = [
   { name:'Goo Shotgun',     emoji:'🍇', type:'gun', dmg:2, rate:650, speed:28, size:.14, color:0xb45fd9, pellets:5, spread:0.13, unlock:1000, ammo:24, maxAmmo:36 },
   { name:'Cat Cannon',      emoji:'🐱', type:'gun', dmg:1, rate:600, color:0xffaa55, cat:true, unlock:1400, ammo:1, maxAmmo:1 },
   { name:'Freeze Ray',      emoji:'❄️', type:'gun', dmg:2, rate:360, speed:36, size:.15, color:0xbfe9ff, freeze:2.6, unlock:1800, ammo:25, maxAmmo:40 },
-  { name:'Taco Cannon',     emoji:'🌮', type:'gun', dmg:4, rate:500, speed:24, size:.45, color:0xffcc66, gravity:true, blast:2.2, sprite:'🌮', unlock:2300, ammo:30, maxAmmo:45 },
+  { name:'Taco Cannon',     emoji:'🌮', type:'gun', dmg:4, rate:500, speed:24, size:.45, color:0xffcc66, gravity:true, blast:2.2, sprite:'🌮', unlock:2300, ammo:12, maxAmmo:18 },
   { name:'Boom Launcher',   emoji:'🚀', type:'gun', dmg:8, rate:850, speed:24, size:.24, color:0xff9040, blast:4, gravity:true, unlock:2900, ammo:10, maxAmmo:15 },
   { name:'Burger Blaster',  emoji:'🍔', type:'gun', dmg:4, rate:700, speed:18, size:.6, color:0xffbb44, pierce:true, sprite:'🍔', unlock:3600, ammo:15, maxAmmo:22 },
   { name:'Mega Laser',      emoji:'💫', type:'beam', dmg:1, rate:90, range:45, radius:0.9, color:0xff66ff, unlock:4400, ammo:150, maxAmmo:220 },
   { name:'Fart Cannon',     emoji:'💨', type:'cone', dmg:3, rate:700, range:7, knock:13, color:0xaaff66, unlock:5300, ammo:15, maxAmmo:22 },
   { name:'Star Storm',      emoji:'☄️', type:'gun', dmg:8, rate:1200, speed:0, size:.22, color:0xffcc33, blast:3.5, meteor:true, unlock:6500, ammo:6, maxAmmo:10 },
-  { name:'Friendship Gun',  emoji:'💖', type:'gun', dmg:0, rate:700, speed:30, size:.32, color:0xff5aa0, sprite:'💖', befriend:true, unlock:7000, ammo:8, maxAmmo:12 },
+  { name:'Friendship Gun',  emoji:'💖', type:'gun', dmg:0, rate:700, speed:30, size:.32, color:0xff5aa0, sprite:'💖', befriend:true, unlock:7000, ammo:3, maxAmmo:5 },
   { name:'Antigravity Gun', emoji:'🎈', type:'gun', dmg:0, rate:600, speed:32, size:.32, color:0x66e0ff, sprite:'🎈', antigrav:true, unlock:8000, ammo:10, maxAmmo:15 },
   { name:'Metamorphosis',   emoji:'🪄', type:'gun', dmg:0, rate:600, speed:34, size:.3, color:0xcc77ff, sprite:'✨', morph:true, unlock:9000, ammo:10, maxAmmo:15 },
   { name:'Banana Peel Gun', emoji:'🍌', type:'gun', dmg:0, rate:500, speed:22, size:.34, color:0xffe23a, sprite:'🍌', gravity:true, peel:true, unlock:10000, ammo:20, maxAmmo:30 },
-  { name:'Disco Ball Gun',  emoji:'🪩', type:'gun', dmg:0, rate:1000, color:0xffffff, dancemode:true, unlock:11000, ammo:12, maxAmmo:18 },
+  { name:'Disco Ball Gun',  emoji:'🪩', type:'gun', dmg:0, rate:1000, color:0xffffff, dancemode:true, unlock:11000, ammo:1, maxAmmo:2 },
   { name:'Shrink Ray',      emoji:'🔬', type:'gun', dmg:1, rate:300, speed:40, size:.13, color:0x66ffcc, shrink:true, unlock:12000, ammo:18, maxAmmo:26 },
   { name:'Hat Gun',         emoji:'🎩', type:'gun', dmg:0, rate:650, speed:32, size:.32, color:0x333344, sprite:'🎩', hat:true, unlock:13000, ammo:12, maxAmmo:18 },
   { name:'Confetti Gun',    emoji:'🎉', type:'gun', dmg:0, rate:120, speed:30, size:.3, color:0xff66cc, sprite:'🎉', confetti:true, unlock:14000, ammo:80, maxAmmo:120 },
@@ -788,7 +789,7 @@ function makeZombie(type, wave){
   zombies.push({ g, mats, armL, armR, legL, legR, type, s, hp, speed,
     score:Math.round(T.score * D[3]), drop:T.drop, phase:rnd(Math.PI*2),
     frozen:0, flash:0, atkT:rnd(0.4,1), kbx:0, kbz:0,
-    flying:false, flyVy:0, banana:0, slipCd:0, blinded:0, hopVy:0, hopY:0,
+    flying:false, flyVy:0, banana:0, slipCd:0, blinded:0, hopVy:0, hopY:0, antigravHits:0,
     wanderT:0, wx:0, wz:0 });
 }
 
@@ -1086,7 +1087,12 @@ function killZombie(z, giveScore=true){
   }
   if(Math.random() < z.drop) dropPickup(p.x, p.z, 'heart');
   else if(Math.random() < 0.09) dropPickup(p.x, p.z, 'ammo');
-  if(z.type === 'boss') dropPickup(p.x + 1.2, p.z, 'ammo');
+  if(z.type === 'boss'){
+    dropPickup(p.x + 1.2, p.z, 'ammo');
+    // rare disco refill: beating a boss recharges the Disco Ball Gun
+    const di = WEAPONS.findIndex(w => w.dancemode);
+    if(di >= 0 && unlocked[di] && ammo[di] < WEAPONS[di].maxAmmo){ ammo[di]++; refreshWeaponBar(); }
+  }
 }
 
 // ---- special weapon effects (friendship, antigravity, morph, shrink, disco, peel)
@@ -1103,9 +1109,14 @@ function befriendZombie(z){
     phase:0, life:14, atkT:0.3, dmg:2 });
   unlockAch('friend');
 }
-function launchZombie(z){ // antigravity: send it flying into the sky
-  z.flying = true; z.flyVy = 9; z.frozen = 0;
-  unlockAch('sky');
+function launchZombie(z){ // antigravity: heavy zombies need several hits to lift off
+  const need = z.type === 'boss' ? 8 : z.type === 'brute' ? 3 : 1;
+  z.antigravHits = (z.antigravHits || 0) + 1;
+  z.hopVy = Math.max(z.hopVy || 0, 3);   // a little hop each hit for feedback
+  if(z.antigravHits >= need){
+    z.flying = true; z.flyVy = 9; z.frozen = 0;
+    unlockAch('sky');
+  }
 }
 function morphZombie(z){ // turn it into a harmless banana that soon poofs
   z.banana = 2.4;
@@ -1151,7 +1162,7 @@ function confettiBurst(x, y, zc){ // pure fun — does nothing but look festive
   for(const col of [0xff4488, 0x44ddff, 0xffee44, 0x88ff44, 0xff8844, 0xcc66ff])
     burst(x, y, zc, col, 6, 5);
 }
-function spawnPlane(){
+function spawnPlane(zPos){
   const g = new THREE.Group();
   const grey = new THREE.MeshLambertMaterial({ color:0xdadde2 });
   const grey2 = new THREE.MeshLambertMaterial({ color:0xb8bcc4 });
@@ -1160,20 +1171,12 @@ function spawnPlane(){
   g.add(new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.15, 5.5), grey2));
   const tailw = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.12, 2.2), grey2); tailw.position.x = -2; g.add(tailw);
   const fin = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1, 0.12), grey2); fin.position.set(-2, 0.55, 0); g.add(fin);
-  g.position.set(-70, 22, rnd(-14, 6));
+  g.position.set(-70, 22, zPos === undefined ? rnd(-14, 6) : zPos);
   scene.add(g);
-  planes.push({ g, vx:60, life:3 });
-}
-function showOfForce(){ // plane fly-over: shakes the world, bounces every zombie
-  shake = Math.min(shake + 1.3, 1.6);
-  spawnPlane();
-  for(const z of zombies){
-    if(z.flying || z.banana) continue;
-    const a = rnd(Math.PI*2);
-    z.kbx += Math.cos(a)*15; z.kbz += Math.sin(a)*15;
-    z.hopVy = rnd(5, 8);
-    z.frozen = Math.max(z.frozen, 0.5);
-  }
+  const rec = { g, vx:60, life:3.4 };
+  planes.push(rec);
+  SFX.plane();
+  return rec;
 }
 function createFire(x, z){
   const m = new THREE.Mesh(new THREE.CircleGeometry(2.2, 18),
@@ -1182,19 +1185,35 @@ function createFire(x, z){
   scene.add(m);
   fires.push({ m, x, z, r:2.2, life:4.5, dmgT:0 });
 }
-function napalmStrike(){ // air strike where you aim — burns zombies AND you
-  const dir = new THREE.Vector3(); camera.getWorldDirection(dir);
-  let t = dir.y < -0.05 ? camera.position.y / -dir.y : 16;
-  t = clamp(t, 6, 30);
-  const tx = clamp(camera.position.x + dir.x*t, -ARENA, ARENA);
-  const tz = clamp(camera.position.z + dir.z*t, -ARENA, ARENA);
-  spawnPlane();
-  for(let i=0;i<5;i++){
-    const fx = clamp(tx + rnd(-4,4), -ARENA, ARENA), fz = clamp(tz + rnd(-4,4), -ARENA, ARENA);
-    createFire(fx, fz);
-    explosion(fx, 0.3, fz, 2.2, 5);
+// ---- airstrikes: called by radio, arrive after a short delay with a plane
+const pendingStrikes = [];  // { type, tx, tz, delay, plane, marker, triggered }
+const bombs = [];           // falling napalm ordinance
+function callStrike(type){
+  let tx = 0, tz = 0, marker = null;
+  if(type === 'napalm'){
+    const dir = new THREE.Vector3(); camera.getWorldDirection(dir);
+    let t = dir.y < -0.05 ? camera.position.y / -dir.y : 16;
+    t = clamp(t, 6, 30);
+    tx = clamp(camera.position.x + dir.x*t, -ARENA, ARENA);
+    tz = clamp(camera.position.z + dir.z*t, -ARENA, ARENA);
+    marker = new THREE.Mesh(new THREE.RingGeometry(2.4, 3.0, 22),
+      new THREE.MeshBasicMaterial({ color:0xff2200, transparent:true, opacity:0.85, side:THREE.DoubleSide, fog:false }));
+    marker.rotation.x = -Math.PI/2; marker.position.set(tx, 0.07, tz);
+    scene.add(marker);
   }
+  showBanner(type === 'napalm' ? '📻 NAPALM INCOMING!' : '📻 FLYBY INCOMING!');
+  SFX.radio();
+  pendingStrikes.push({ type, tx, tz, delay:1.8, plane:null, marker, triggered:false });
 }
+function dropBomb(x, y, z){
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.24, 0.9, 8),
+    new THREE.MeshLambertMaterial({ color:0x2a2a2a }));
+  m.position.set(x, y, z); scene.add(m);
+  bombs.push({ m, vy:-3 });
+  SFX.airstrike();
+}
+function showOfForce(){ callStrike('force'); }
+function napalmStrike(){ callStrike('napalm'); }
 function makeChickenMesh(){
   const g = new THREE.Group();
   const white = new THREE.MeshLambertMaterial({ color:0xffffff });
@@ -1216,9 +1235,10 @@ function makeChickenMesh(){
 function launchChicken(){
   const dir = new THREE.Vector3(); camera.getWorldDirection(dir);
   const c = makeChickenMesh();
-  c.g.position.set(clamp(player.x + dir.x*2, -ARENA, ARENA), 0, clamp(player.z + dir.z*2, -ARENA, ARENA));
+  c.g.position.set(clamp(player.x + dir.x*1.5, -ARENA, ARENA), 0.5, clamp(player.z + dir.z*1.5, -ARENA, ARENA));
   scene.add(c.g);
-  chickens.push({ g:c.g, legs:c.legs, life:10, atkT:0.4, phase:0 });
+  // fired out away from the player, then it lands and starts hunting
+  chickens.push({ g:c.g, legs:c.legs, life:10, atkT:0.4, phase:0, vx:dir.x*17, vz:dir.z*17, launchT:0.55 });
 }
 
 // ---- Disco Ball Gun: full dance mode — spinning mirror ball, colorful floor,
@@ -1323,6 +1343,7 @@ function tryAttack(now){
   if(now - lastShot < w.rate) return;
   lastShot = now;
   if(w.type !== 'melee' && ammo[curWeapon] <= 0){ SFX.click(); return; }
+  if(w.dancemode && danceT > 0){ SFX.click(); return; }   // one party at a time
   attackAnim = 1;
   if(w.type === 'melee'){
     punchHand = 1 - punchHand;
@@ -1334,9 +1355,9 @@ function tryAttack(now){
   } else if(w.type === 'cone'){
     coneBlast(w);
   } else if(w.type === 'force'){
-    showOfForce(); SFX.plane();
+    showOfForce();
   } else if(w.type === 'napalm'){
-    napalmStrike(); SFX.airstrike();
+    napalmStrike();
   } else {
     if(w.meteor){ spawnMeteors(w); SFX.meteor(); }
     else if(w.cat){ launchCat(); SFX.meow(); }
@@ -1443,6 +1464,10 @@ function clearEntities(){
   fires.length = 0;
   for(const c of chickens) scene.remove(c.g);
   chickens.length = 0;
+  for(const s of pendingStrikes) if(s.marker) scene.remove(s.marker);
+  pendingStrikes.length = 0;
+  for(const b of bombs) scene.remove(b.m);
+  bombs.length = 0;
   beamUntil = 0;
   beamMesh.visible = false;
 }
@@ -1990,7 +2015,7 @@ function simulate(dt, now){
         const bonus = 20 + wave*10;
         if(!skippedWave) addScore(bonus);
         if(!skippedWave && !waveHurt) unlockAch('perfect');
-        for(let j=0;j<WEAPONS.length;j++) if(unlocked[j] && WEAPONS[j].maxAmmo && !WEAPONS[j].cat)
+        for(let j=0;j<WEAPONS.length;j++) if(unlocked[j] && WEAPONS[j].maxAmmo && !WEAPONS[j].cat && !WEAPONS[j].dancemode)
           ammo[j] = Math.min(WEAPONS[j].maxAmmo, ammo[j] + Math.ceil(WEAPONS[j].maxAmmo*0.15));
         refreshWeaponBar();
         showBanner(skippedWave ? 'WAVE SKIPPED!' : 'WAVE CLEARED! +' + bonus);
@@ -2042,19 +2067,36 @@ function simulate(dt, now){
       }
     }
 
-    // disco dance mode: everybody dance! (no chasing, no attacking)
+    // disco dance mode: run onto the dance floor, THEN boogie
     if(danceT > 0 && playing){
-      z.phase += dt * 9;
-      z.g.rotation.y += dt * 2.5;
-      z.g.rotation.z = Math.sin(z.phase) * 0.28;
-      z.legL.rotation.x = Math.sin(z.phase*2) * 0.5;
-      z.legR.rotation.x = -Math.sin(z.phase*2) * 0.5;
-      z.armL.rotation.x = -Math.PI/2 + Math.sin(z.phase*3) * 0.9;
-      z.armR.rotation.x = -Math.PI/2 - Math.sin(z.phase*3) * 0.9;
-      p.x += z.kbx*dt; p.z += z.kbz*dt;
-      z.kbx *= Math.pow(0.02, dt); z.kbz *= Math.pow(0.02, dt);
-      p.x = clamp(p.x, -ARENA, ARENA); p.z = clamp(p.z, -ARENA, ARENA);
-      p.y = Math.abs(Math.sin(z.phase*2)) * 0.28;
+      const cd = Math.hypot(p.x, p.z);   // distance from the dance floor centre
+      if(cd > 7){
+        // hustle to the floor
+        const rs = 6;
+        p.x += (-p.x/cd)*rs*dt + z.kbx*dt;
+        p.z += (-p.z/cd)*rs*dt + z.kbz*dt;
+        z.kbx *= Math.pow(0.02, dt); z.kbz *= Math.pow(0.02, dt);
+        p.x = clamp(p.x, -ARENA, ARENA); p.z = clamp(p.z, -ARENA, ARENA);
+        z.phase += dt * z.speed * 4;
+        z.g.rotation.y = Math.atan2(-p.x, -p.z);
+        z.g.rotation.z = 0;
+        z.legL.rotation.x = Math.sin(z.phase*2) * 0.55;
+        z.legR.rotation.x = -Math.sin(z.phase*2) * 0.55;
+        z.armL.rotation.x = -Math.PI/2; z.armR.rotation.x = -Math.PI/2;
+        p.y = Math.abs(Math.sin(z.phase*2)) * 0.05 * z.s;
+      } else {
+        // on the floor — dance!
+        z.phase += dt * 9;
+        z.g.rotation.y += dt * 2.5;
+        z.g.rotation.z = Math.sin(z.phase) * 0.28;
+        z.legL.rotation.x = Math.sin(z.phase*2) * 0.5;
+        z.legR.rotation.x = -Math.sin(z.phase*2) * 0.5;
+        z.armL.rotation.x = -Math.PI/2 + Math.sin(z.phase*3) * 0.9;
+        z.armR.rotation.x = -Math.PI/2 - Math.sin(z.phase*3) * 0.9;
+        p.x += z.kbx*dt; p.z += z.kbz*dt;
+        z.kbx *= Math.pow(0.02, dt); z.kbz *= Math.pow(0.02, dt);
+        p.y = Math.abs(Math.sin(z.phase*2)) * 0.28;
+      }
       if(z.flash > 0) z.flash -= dt;
       continue;
     }
@@ -2310,6 +2352,52 @@ function simulate(dt, now){
     if(pl.life <= 0){ scene.remove(pl.g); planes.splice(i, 1); }
   }
 
+  // ---- pending airstrikes: wait, then a plane flies in and does its thing
+  for(let i = pendingStrikes.length-1; i >= 0; i--){
+    const s = pendingStrikes[i];
+    if(s.marker) s.marker.material.opacity = 0.4 + 0.45*Math.abs(Math.sin(now*0.012));
+    if(!s.plane){
+      s.delay -= dt;
+      if(s.delay <= 0) s.plane = spawnPlane(s.type === 'napalm' ? s.tz : undefined);
+      continue;
+    }
+    const px = s.plane.g.position.x;
+    if(!s.triggered && px >= (s.type === 'napalm' ? s.tx : 0)){
+      s.triggered = true;
+      if(s.type === 'napalm'){
+        dropBomb(s.plane.g.position.x, s.plane.g.position.y, s.tz);   // ordinance falls from the plane
+      } else {
+        shake = Math.min(shake + 1.3, 1.6);                          // flyby bounces everyone
+        for(const z of zombies){
+          if(z.flying || z.banana) continue;
+          const a = rnd(Math.PI*2);
+          z.kbx += Math.cos(a)*15; z.kbz += Math.sin(a)*15;
+          z.hopVy = rnd(5, 8); z.frozen = Math.max(z.frozen, 0.5);
+        }
+      }
+    }
+    if(s.triggered && (px > 82 || !s.plane.g.parent)){
+      if(s.marker) scene.remove(s.marker);
+      pendingStrikes.splice(i, 1);
+    }
+  }
+
+  // ---- falling napalm bombs
+  for(let i = bombs.length-1; i >= 0; i--){
+    const b = bombs[i];
+    b.vy -= 20*dt;
+    b.m.position.y += b.vy*dt;
+    b.m.rotation.x += dt*4;
+    if(b.m.position.y <= 0.3){
+      const bx = b.m.position.x, bz = b.m.position.z;
+      for(let k=0;k<5;k++){
+        const fx = clamp(bx + rnd(-4,4), -ARENA, ARENA), fz = clamp(bz + rnd(-4,4), -ARENA, ARENA);
+        createFire(fx, fz); explosion(fx, 0.3, fz, 2.2, 5);
+      }
+      scene.remove(b.m); bombs.splice(i, 1);
+    }
+  }
+
   // ---- napalm fires (burn zombies AND the player)
   for(let i = fires.length-1; i >= 0; i--){
     const fr = fires[i];
@@ -2333,6 +2421,21 @@ function simulate(dt, now){
     const c = chickens[i];
     c.life -= dt;
     if(c.life <= 0){ burst(c.g.position.x, 0.5, c.g.position.z, 0xffffff, 8, 3); scene.remove(c.g); chickens.splice(i, 1); continue; }
+    // launch phase: it's flung out away from the player, tumbling, before it hunts
+    if(c.launchT > 0){
+      c.launchT -= dt;
+      c.g.position.x = clamp(c.g.position.x + c.vx*dt, -ARENA, ARENA);
+      c.g.position.z = clamp(c.g.position.z + c.vz*dt, -ARENA, ARENA);
+      c.vx *= Math.pow(0.03, dt); c.vz *= Math.pow(0.03, dt);
+      c.g.position.y = Math.max(0, 0.5 + Math.sin((0.55 - c.launchT) * 6) * 0.5);
+      c.g.rotation.y = Math.atan2(c.vx, c.vz);
+      c.g.rotation.x += dt * 12;   // tumble through the air
+      c.phase += dt * 22;
+      c.legs[0].rotation.x = Math.sin(c.phase) * 0.8;
+      c.legs[1].rotation.x = -Math.sin(c.phase) * 0.8;
+      if(c.launchT <= 0){ c.g.rotation.x = 0; c.g.position.y = 0; }
+      continue;
+    }
     // nearest target: the player, or any zombie, whichever is closest
     let tx = player.x, tz = player.z, targetZ = null;
     let bd = Math.hypot(player.x - c.g.position.x, player.z - c.g.position.z);
@@ -2411,7 +2514,7 @@ function simulate(dt, now){
     if(playing && Math.hypot(pk.sp.position.x - player.x, pk.sp.position.z - player.z) < 1.3){
       if(pk.kind === 'ammo'){
         // (the cat cannon reloads only when the cat finishes its nap)
-        for(let j=0;j<WEAPONS.length;j++) if(unlocked[j] && WEAPONS[j].maxAmmo && !WEAPONS[j].cat)
+        for(let j=0;j<WEAPONS.length;j++) if(unlocked[j] && WEAPONS[j].maxAmmo && !WEAPONS[j].cat && !WEAPONS[j].dancemode)
           ammo[j] = Math.min(WEAPONS[j].maxAmmo, ammo[j] + Math.ceil(WEAPONS[j].maxAmmo*0.3));
         SFX.reload();
         refreshWeaponBar();
