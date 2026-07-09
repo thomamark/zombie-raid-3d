@@ -55,6 +55,11 @@ wave). Fists and bat never run out.
 | 🍌 Banana Peel Gun (drops peels that zombies slip on) | 10000 |
 | 🪩 Disco Ball Gun (stuns a whole crowd in a dance freeze) | 11000 |
 | 🔬 Shrink Ray (shrinks zombies down to fun size) | 12000 |
+| 🎩 Hat Gun (a silly hat blinds the zombie so it stumbles around) | 13000 |
+| 🎉 Confetti Gun (does nothing but shoot confetti — pure party) | 14000 |
+| ✈️ Show of Force (walkie-talkie: a plane fly-over shakes the world and bounces every zombie) | 15500 |
+| 🔥 Napalm (walkie-talkie air strike — fire that also burns YOU if you stand in it) | 17000 |
+| 🐔 Chicken Cannon (a chicken that pecks whatever's nearest — including you!) | 18500 |
 
 Grab ❤️ hearts dropped by big zombies to heal. Boss zombies every 5th wave
 (two at wave 10+!). Watch out for yellow **spitter** zombies from wave 5 —

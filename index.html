@@ -197,7 +197,7 @@
 'use strict';
 // Build number — BUMP THIS BY 1 ON EVERY DEPLOY. The running game polls the
 // server for a higher BUILD and auto-reloads to it (see auto-update, bottom).
-const BUILD = 1;
+const BUILD = 2;
 // ============================================================ helpers
 const rnd = (a=1,b) => b===undefined ? Math.random()*a : a+Math.random()*(b-a);
 const clamp = (v,a,b) => v<a?a : v>b?b : v;
@@ -264,6 +264,11 @@ const SFX = {
   click(){ tone(1200, 900, .04, 'square', .07); },
   reload(){ tone(520, 520, .05, 'square', .16); tone(760, 760, .06, 'square', .16, .08); },
   jump(){ tone(280, 560, .14, 'sine', .12); },
+  hat(){ tone(500, 700, .08, 'sine', .14); tone(700, 900, .08, 'sine', .14, .07); },
+  confetti(){ [880,1175,1568].forEach((f,i)=>tone(f,f*1.3,.07,'triangle',.1,i*0.03)); noiseBurst(.15,.08,3000); },
+  plane(){ tone(120, 90, 1.6, 'sawtooth', .16); noiseBurst(1.4, .12, 500); },
+  airstrike(){ tone(1600, 200, .7, 'sine', .12); tone(90, 40, .5, 'sine', .4, .6); noiseBurst(.5,.4,400,.6); },
+  cluck(){ tone(900, 1300, .05, 'square', .16); tone(1300, 700, .08, 'square', .14, .05); },
   friend(){ tone(660, 880, .1, 'sine', .18); tone(880, 1100, .12, 'sine', .18, .09); },
   whoosh(){ tone(200, 1400, .4, 'sine', .16); },
   magic(){ [880,1175,1568,2093].forEach((f,i)=>tone(f,f*1.2,.09,'sine',.12,i*0.05)); },
@@ -643,6 +648,11 @@ const WEAPONS = [
   { name:'Banana Peel Gun', emoji:'🍌', type:'gun', dmg:0, rate:500, speed:22, size:.34, color:0xffe23a, sprite:'🍌', gravity:true, peel:true, unlock:10000, ammo:20, maxAmmo:30 },
   { name:'Disco Ball Gun',  emoji:'🪩', type:'gun', dmg:1, rate:800, speed:26, size:.34, color:0xffffff, sprite:'🪩', disco:2.6, unlock:11000, ammo:12, maxAmmo:18 },
   { name:'Shrink Ray',      emoji:'🔬', type:'gun', dmg:1, rate:300, speed:40, size:.13, color:0x66ffcc, shrink:true, unlock:12000, ammo:18, maxAmmo:26 },
+  { name:'Hat Gun',         emoji:'🎩', type:'gun', dmg:0, rate:650, speed:32, size:.32, color:0x333344, sprite:'🎩', hat:true, unlock:13000, ammo:12, maxAmmo:18 },
+  { name:'Confetti Gun',    emoji:'🎉', type:'gun', dmg:0, rate:120, speed:30, size:.3, color:0xff66cc, sprite:'🎉', confetti:true, unlock:14000, ammo:80, maxAmmo:120 },
+  { name:'Show of Force',   emoji:'✈️', type:'force', dmg:0, rate:1400, unlock:15500, ammo:4, maxAmmo:6 },
+  { name:'Napalm',          emoji:'🔥', type:'napalm', dmg:4, rate:1500, unlock:17000, ammo:4, maxAmmo:6 },
+  { name:'Chicken Cannon',  emoji:'🐔', type:'gun', dmg:2, rate:700, color:0xffffff, chicken:true, unlock:18500, ammo:3, maxAmmo:5 },
 ];
 
 // --- first-person view models (attached to camera)
@@ -700,7 +710,12 @@ const viewModels = [];
     makeGun(0xcc77ff, true, '🪄'),   // metamorphosis
     makeGun(0xffe23a, true, '🍌'),   // banana peel
     makeGun(0xffffff, true, '🪩'),   // disco ball
-    makeGun(0x66ffcc, true, '🔬'));  // shrink ray
+    makeGun(0x66ffcc, true, '🔬'),   // shrink ray
+    makeGun(0x333344, true, '🎩'),   // hat gun
+    makeGun(0xff66cc, true, '🎉'),   // confetti gun
+    makeGun(0x445566, true, '📻'),   // show of force (walkie talkie)
+    makeGun(0x445566, true, '📻'),   // napalm (walkie talkie)
+    makeGun(0xffffff, true, '🐔'));  // chicken cannon
   for(const vm of viewModels){ vm.visible = false; camera.add(vm); }
 }
 
@@ -773,7 +788,7 @@ function makeZombie(type, wave){
   zombies.push({ g, mats, armL, armR, legL, legR, type, s, hp, speed,
     score:Math.round(T.score * D[3]), drop:T.drop, phase:rnd(Math.PI*2),
     frozen:0, flash:0, atkT:rnd(0.4,1), kbx:0, kbz:0,
-    flying:false, flyVy:0, banana:0, slipCd:0,
+    flying:false, flyVy:0, banana:0, slipCd:0, blinded:0, hopVy:0, hopY:0,
     wanderT:0, wx:0, wz:0 });
 }
 
@@ -1121,6 +1136,90 @@ function createPeel(x, z){
   scene.add(sp);
   peels.push({ sp, x, z, life:14, uses:4 });
 }
+const planes = [];    // plane fly-overs (Show of Force / Napalm)
+const fires = [];     // napalm fire patches — burn zombies AND the player
+const chickens = [];  // chaotic chickens that peck whatever's nearest
+function hatZombie(z){ // silly hat: the zombie can't see and stumbles blindly
+  z.blinded = 6;
+  if(!z.g.userData.hat){
+    const hat = new THREE.Sprite(new THREE.SpriteMaterial({ map: emojiTexture('🎩') }));
+    hat.scale.setScalar(0.62); hat.position.set(0, 2.4, 0); z.g.add(hat);
+    z.g.userData.hat = hat;
+  }
+}
+function confettiBurst(x, y, zc){ // pure fun — does nothing but look festive
+  for(const col of [0xff4488, 0x44ddff, 0xffee44, 0x88ff44, 0xff8844, 0xcc66ff])
+    burst(x, y, zc, col, 6, 5);
+}
+function spawnPlane(){
+  const g = new THREE.Group();
+  const grey = new THREE.MeshLambertMaterial({ color:0xdadde2 });
+  const grey2 = new THREE.MeshLambertMaterial({ color:0xb8bcc4 });
+  g.add(new THREE.Mesh(new THREE.BoxGeometry(4.5, 0.9, 1), grey));
+  const nose = new THREE.Mesh(new THREE.ConeGeometry(0.5, 1.2, 8), grey); nose.rotation.z = -Math.PI/2; nose.position.x = 2.6; g.add(nose);
+  g.add(new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.15, 5.5), grey2));
+  const tailw = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.12, 2.2), grey2); tailw.position.x = -2; g.add(tailw);
+  const fin = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1, 0.12), grey2); fin.position.set(-2, 0.55, 0); g.add(fin);
+  g.position.set(-70, 22, rnd(-14, 6));
+  scene.add(g);
+  planes.push({ g, vx:60, life:3 });
+}
+function showOfForce(){ // plane fly-over: shakes the world, bounces every zombie
+  shake = Math.min(shake + 1.3, 1.6);
+  spawnPlane();
+  for(const z of zombies){
+    if(z.flying || z.banana) continue;
+    const a = rnd(Math.PI*2);
+    z.kbx += Math.cos(a)*15; z.kbz += Math.sin(a)*15;
+    z.hopVy = rnd(5, 8);
+    z.frozen = Math.max(z.frozen, 0.5);
+  }
+}
+function createFire(x, z){
+  const m = new THREE.Mesh(new THREE.CircleGeometry(2.2, 18),
+    new THREE.MeshBasicMaterial({ color:0xff5511, transparent:true, opacity:0.55 }));
+  m.rotation.x = -Math.PI/2; m.position.set(x, 0.05, z);
+  scene.add(m);
+  fires.push({ m, x, z, r:2.2, life:4.5, dmgT:0 });
+}
+function napalmStrike(){ // air strike where you aim — burns zombies AND you
+  const dir = new THREE.Vector3(); camera.getWorldDirection(dir);
+  let t = dir.y < -0.05 ? camera.position.y / -dir.y : 16;
+  t = clamp(t, 6, 30);
+  const tx = clamp(camera.position.x + dir.x*t, -ARENA, ARENA);
+  const tz = clamp(camera.position.z + dir.z*t, -ARENA, ARENA);
+  spawnPlane();
+  for(let i=0;i<5;i++){
+    const fx = clamp(tx + rnd(-4,4), -ARENA, ARENA), fz = clamp(tz + rnd(-4,4), -ARENA, ARENA);
+    createFire(fx, fz);
+    explosion(fx, 0.3, fz, 2.2, 5);
+  }
+}
+function makeChickenMesh(){
+  const g = new THREE.Group();
+  const white = new THREE.MeshLambertMaterial({ color:0xffffff });
+  const red = new THREE.MeshLambertMaterial({ color:0xdd3322 });
+  const yellow = new THREE.MeshLambertMaterial({ color:0xffbb22 });
+  const body = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.34, 0.44), white); body.position.y = 0.4; g.add(body);
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.28, 0.24), white); head.position.set(0, 0.68, 0.2); g.add(head);
+  const comb = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.12, 0.18), red); comb.position.set(0, 0.86, 0.2); g.add(comb);
+  const beak = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.16, 4), yellow); beak.rotation.x = Math.PI/2; beak.position.set(0, 0.66, 0.36); g.add(beak);
+  const eyeMat = new THREE.MeshLambertMaterial({ color:0x111111 });
+  for(const ex of [-0.1, 0.1]){ const e = new THREE.Mesh(new THREE.SphereGeometry(0.03,6,6), eyeMat); e.position.set(ex, 0.72, 0.31); g.add(e); }
+  const legGeo = new THREE.BoxGeometry(0.05, 0.28, 0.05); legGeo.translate(0, -0.14, 0);
+  const legs = [];
+  for(const lx of [-0.09, 0.09]){ const leg = new THREE.Mesh(legGeo, yellow); leg.position.set(lx, 0.24, 0); g.add(leg); legs.push(leg); }
+  const blob = new THREE.Mesh(blobGeo, blobMat);
+  blob.rotation.x = -Math.PI/2; blob.position.y = 0.02; blob.scale.setScalar(0.5); g.add(blob);
+  return { g, legs };
+}
+function launchChicken(){
+  const dir = new THREE.Vector3(); camera.getWorldDirection(dir);
+  const c = makeChickenMesh();
+  c.g.position.set(clamp(player.x + dir.x*2, -ARENA, ARENA), 0, clamp(player.z + dir.z*2, -ARENA, ARENA));
+  scene.add(c.g);
+  chickens.push({ g:c.g, legs:c.legs, life:10, atkT:0.4, phase:0 });
+}
 function meleeAttack(w){
   const dir = new THREE.Vector3(); camera.getWorldDirection(dir);
   let hitAny = false;
@@ -1164,9 +1263,14 @@ function tryAttack(now){
     SFX.laser();
   } else if(w.type === 'cone'){
     coneBlast(w);
+  } else if(w.type === 'force'){
+    showOfForce(); SFX.plane();
+  } else if(w.type === 'napalm'){
+    napalmStrike(); SFX.airstrike();
   } else {
     if(w.meteor){ spawnMeteors(w); SFX.meteor(); }
     else if(w.cat){ launchCat(); SFX.meow(); }
+    else if(w.chicken){ launchChicken(); SFX.cluck(); }
     else if(w.pellets){
       for(let i=0;i<w.pellets;i++) shootProjectile(w, w.spread);
       SFX.shotgun();
@@ -1177,6 +1281,8 @@ function tryAttack(now){
       else if(w.morph) SFX.magic();
       else if(w.disco) SFX.disco();
       else if(w.shrink) SFX.shrink();
+      else if(w.hat) SFX.hat();
+      else if(w.confetti) SFX.confetti();
       else if(w.meow) SFX.meow();
       else if(w.sprite) SFX.lob();
       else if(w.blast) SFX.launch();
@@ -1260,6 +1366,12 @@ function clearEntities(){
   allies.length = 0;
   for(const pk of peels) scene.remove(pk.sp);
   peels.length = 0;
+  for(const pl of planes) scene.remove(pl.g);
+  planes.length = 0;
+  for(const fr of fires) scene.remove(fr.m);
+  fires.length = 0;
+  for(const c of chickens) scene.remove(c.g);
+  chickens.length = 0;
   beamUntil = 0;
   beamMesh.visible = false;
 }
@@ -1617,7 +1729,7 @@ adminBtn.addEventListener('click', e => {
   $('pauseLabel').classList.toggle('hidden', !paused);
 });
 $('adminGo').addEventListener('click', () => {
-  if($('adminPass').value === 'dustinxyz'){
+  if($('adminPass').value === 'dbxyz123'){
     adminAuthed = true;
     adminUsed = true;   // unlocking admin makes this run "just for fun" — no scores/achievements
 
@@ -1851,21 +1963,29 @@ function simulate(dt, now){
       const dx = player.x - p.x, dz = player.z - p.z;
       const d = Math.hypot(dx, dz);
       const stop = 1.0 + z.s*0.45;
-      if(z.frozen <= 0){
-        if(z.type === 'spitter'){
-          // keeps its distance and lobs goo
-          if(d > 13){ dirx = dx/d; dirz = dz/d; }
-          else if(d < 7){ dirx = -dx/d; dirz = -dz/d; }
-        } else if(d > stop){ dirx = dx/d; dirz = dz/d; }
-      }
-      // attack (a mid-jump player is out of swiping reach)
-      z.atkT -= dt;
-      if(z.frozen <= 0 && z.atkT <= 0){
-        if(z.type === 'spitter'){
-          if(d < 18){ z.atkT = 2.4; spit(z); }
-        } else if(d < stop + 0.45 && py < 0.9){
-          z.atkT = 1.1;
-          hurtPlayer();
+      if(z.blinded > 0){
+        // hat over the eyes: can't see, stumbles blindly, can't attack
+        z.blinded -= dt;
+        z.wanderT -= dt;
+        if(z.wanderT <= 0){ z.wanderT = rnd(0.5, 1.2); const a = rnd(Math.PI*2); z.wx = Math.cos(a); z.wz = Math.sin(a); }
+        if(z.frozen <= 0){ dirx = z.wx; dirz = z.wz; }
+      } else {
+        if(z.frozen <= 0){
+          if(z.type === 'spitter'){
+            // keeps its distance and lobs goo
+            if(d > 13){ dirx = dx/d; dirz = dz/d; }
+            else if(d < 7){ dirx = -dx/d; dirz = -dz/d; }
+          } else if(d > stop){ dirx = dx/d; dirz = dz/d; }
+        }
+        // attack (a mid-jump player is out of swiping reach)
+        z.atkT -= dt;
+        if(z.frozen <= 0 && z.atkT <= 0){
+          if(z.type === 'spitter'){
+            if(d < 18){ z.atkT = 2.4; spit(z); }
+          } else if(d < stop + 0.45 && py < 0.9){
+            z.atkT = 1.1;
+            hurtPlayer();
+          }
         }
       }
     } else {
@@ -1901,6 +2021,14 @@ function simulate(dt, now){
     z.armL.rotation.x = -Math.PI/2 + Math.sin(z.phase*2) * 0.12;
     z.armR.rotation.x = -Math.PI/2 - Math.sin(z.phase*2) * 0.12;
     p.y = Math.abs(Math.sin(z.phase*2)) * 0.05 * z.s;
+    // Show of Force bounce: a physics hop overrides the shamble bob
+    if(z.hopVy || z.hopY > 0){
+      z.hopY = (z.hopY || 0) + z.hopVy * dt;
+      z.hopVy -= 20 * dt;
+      if(z.hopY <= 0){ z.hopY = 0; z.hopVy = 0; }
+      p.y = z.hopY;
+      z.g.rotation.z += z.hopVy * dt * 0.3;
+    }
 
     // hit flash / freeze tint
     if(z.flash > 0) z.flash -= dt;
@@ -1941,6 +2069,7 @@ function simulate(dt, now){
       } else {
         if(pr.w.blast) explosion(pr.m.position.x, 0.3, pr.m.position.z, pr.w.blast, pr.w.dmg);
         else if(pr.w.peel) createPeel(pr.m.position.x, pr.m.position.z);
+        else if(pr.w.confetti) confettiBurst(pr.m.position.x, 0.3, pr.m.position.z);
         dead = true;
       }
     }
@@ -1960,6 +2089,8 @@ function simulate(dt, now){
           else if(w.morph) morphZombie(z);
           else if(w.shrink) shrinkZombie(z);
           else if(w.disco) discoBlast(zp.x, zp.z, w);
+          else if(w.hat) hatZombie(z);
+          else if(w.confetti) confettiBurst(pr.m.position.x, pr.m.position.y, pr.m.position.z);
           else {
             damageZombie(z, w.dmg, w.knock || 2, dd>0.001?-dx/dd:0, dd>0.001?-dz/dd:0);
             if(w.freeze) z.frozen = w.freeze;
@@ -2069,6 +2200,67 @@ function simulate(dt, now){
     const pk = peels[i];
     pk.life -= dt;
     if(pk.life <= 0 || pk.uses <= 0){ scene.remove(pk.sp); peels.splice(i, 1); }
+  }
+
+  // ---- plane fly-overs (Show of Force / Napalm)
+  for(let i = planes.length-1; i >= 0; i--){
+    const pl = planes[i];
+    pl.g.position.x += pl.vx*dt;
+    pl.life -= dt;
+    if(pl.life <= 0){ scene.remove(pl.g); planes.splice(i, 1); }
+  }
+
+  // ---- napalm fires (burn zombies AND the player)
+  for(let i = fires.length-1; i >= 0; i--){
+    const fr = fires[i];
+    fr.life -= dt;
+    fr.dmgT -= dt;
+    fr.m.material.opacity = 0.35 + 0.3*Math.abs(Math.sin(now*0.02 + fr.x));
+    if(fr.dmgT <= 0){
+      fr.dmgT = 0.4;
+      for(const z of [...zombies]){
+        if(z.flying || z.banana) continue;
+        if(Math.hypot(z.g.position.x - fr.x, z.g.position.z - fr.z) < fr.r + z.s*0.4) damageZombie(z, 2);
+      }
+      if(playing && py < 0.9 && Math.hypot(player.x - fr.x, player.z - fr.z) < fr.r) hurtPlayer();
+      burst(fr.x + rnd(-1.4,1.4), 0.4, fr.z + rnd(-1.4,1.4), 0xff6622, 3, 3);
+    }
+    if(fr.life <= 0){ scene.remove(fr.m); fr.m.material.dispose(); fires.splice(i, 1); }
+  }
+
+  // ---- chickens (peck whatever is nearest — including you!)
+  for(let i = chickens.length-1; i >= 0; i--){
+    const c = chickens[i];
+    c.life -= dt;
+    if(c.life <= 0){ burst(c.g.position.x, 0.5, c.g.position.z, 0xffffff, 8, 3); scene.remove(c.g); chickens.splice(i, 1); continue; }
+    // nearest target: the player, or any zombie, whichever is closest
+    let tx = player.x, tz = player.z, targetZ = null;
+    let bd = Math.hypot(player.x - c.g.position.x, player.z - c.g.position.z);
+    for(const z of zombies){
+      if(z.flying || z.banana) continue;
+      const d = Math.hypot(z.g.position.x - c.g.position.x, z.g.position.z - c.g.position.z);
+      if(d < bd){ bd = d; tx = z.g.position.x; tz = z.g.position.z; targetZ = z; }
+    }
+    const dx = tx - c.g.position.x, dz = tz - c.g.position.z, d = Math.hypot(dx, dz) || 1;
+    const stopAt = 0.8;
+    const moving = d > stopAt;
+    if(moving){
+      c.g.position.x = clamp(c.g.position.x + dx/d*5*dt, -ARENA, ARENA);
+      c.g.position.z = clamp(c.g.position.z + dz/d*5*dt, -ARENA, ARENA);
+    }
+    c.g.rotation.y = Math.atan2(dx, dz);
+    c.phase += dt*13;
+    c.legs[0].rotation.x = moving ? Math.sin(c.phase)*0.6 : 0;
+    c.legs[1].rotation.x = moving ? -Math.sin(c.phase)*0.6 : 0;
+    c.g.position.y = moving ? Math.abs(Math.sin(c.phase))*0.05 : 0;
+    c.atkT -= dt;
+    if(bd < stopAt + 0.4 && c.atkT <= 0){
+      c.atkT = 0.7;
+      SFX.cluck();
+      burst(c.g.position.x + dx/d*0.4, 0.6, c.g.position.z + dz/d*0.4, 0xffcc44, 4, 2.5);
+      if(targetZ) damageZombie(targetZ, 2, 3, dx/d, dz/d);
+      else if(playing) hurtPlayer();  // pecked the player!
+    }
   }
 
   // ---- enemy goo shots
