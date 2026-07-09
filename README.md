@@ -150,6 +150,8 @@ hands-off.
 
 - `index.html` — the whole game (one file).
 - `three.min.js` — the 3D engine (Three.js), served locally so no internet is needed.
+- `apple-touch-icon.png` / `icon-512.png` — the home-screen app icon (a top-hatted
+  zombie) used when you "Add to Home Screen" on the iPad.
 - `start-server.command` — double-click to serve it on your WiFi.
 - `zombie-pop-classic.html` — the original 2D tap-to-pop game, still playable at
   `http://<your-ip>:8000/zombie-pop-classic.html`.
