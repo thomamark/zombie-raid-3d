@@ -53,7 +53,7 @@ wave). Fists and bat never run out.
 | 🎈 Antigravity Gun (sends zombies flying off into the sky) | 8000 |
 | 🪄 Metamorphosis Gun (turns a zombie into a harmless banana) | 9000 |
 | 🍌 Banana Peel Gun (drops peels that zombies slip on) | 10000 |
-| 🪩 Disco Ball Gun (stuns a whole crowd in a dance freeze) | 11000 |
+| 🪩 Disco Ball Gun (starts DANCE MODE — spinning ball, colorful floor, music, and every zombie stops to dance!) | 11000 |
 | 🔬 Shrink Ray (shrinks zombies down to fun size) | 12000 |
 | 🎩 Hat Gun (a silly hat blinds the zombie so it stumbles around) | 13000 |
 | 🎉 Confetti Gun (does nothing but shoot confetti — pure party) | 14000 |

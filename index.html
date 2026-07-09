@@ -197,7 +197,7 @@
 'use strict';
 // Build number — BUMP THIS BY 1 ON EVERY DEPLOY. The running game polls the
 // server for a higher BUILD and auto-reloads to it (see auto-update, bottom).
-const BUILD = 2;
+const BUILD = 3;
 // ============================================================ helpers
 const rnd = (a=1,b) => b===undefined ? Math.random()*a : a+Math.random()*(b-a);
 const clamp = (v,a,b) => v<a?a : v>b?b : v;
@@ -646,7 +646,7 @@ const WEAPONS = [
   { name:'Antigravity Gun', emoji:'🎈', type:'gun', dmg:0, rate:600, speed:32, size:.32, color:0x66e0ff, sprite:'🎈', antigrav:true, unlock:8000, ammo:10, maxAmmo:15 },
   { name:'Metamorphosis',   emoji:'🪄', type:'gun', dmg:0, rate:600, speed:34, size:.3, color:0xcc77ff, sprite:'✨', morph:true, unlock:9000, ammo:10, maxAmmo:15 },
   { name:'Banana Peel Gun', emoji:'🍌', type:'gun', dmg:0, rate:500, speed:22, size:.34, color:0xffe23a, sprite:'🍌', gravity:true, peel:true, unlock:10000, ammo:20, maxAmmo:30 },
-  { name:'Disco Ball Gun',  emoji:'🪩', type:'gun', dmg:1, rate:800, speed:26, size:.34, color:0xffffff, sprite:'🪩', disco:2.6, unlock:11000, ammo:12, maxAmmo:18 },
+  { name:'Disco Ball Gun',  emoji:'🪩', type:'gun', dmg:0, rate:1000, color:0xffffff, dancemode:true, unlock:11000, ammo:12, maxAmmo:18 },
   { name:'Shrink Ray',      emoji:'🔬', type:'gun', dmg:1, rate:300, speed:40, size:.13, color:0x66ffcc, shrink:true, unlock:12000, ammo:18, maxAmmo:26 },
   { name:'Hat Gun',         emoji:'🎩', type:'gun', dmg:0, rate:650, speed:32, size:.32, color:0x333344, sprite:'🎩', hat:true, unlock:13000, ammo:12, maxAmmo:18 },
   { name:'Confetti Gun',    emoji:'🎉', type:'gun', dmg:0, rate:120, speed:30, size:.3, color:0xff66cc, sprite:'🎉', confetti:true, unlock:14000, ammo:80, maxAmmo:120 },
@@ -1220,6 +1220,76 @@ function launchChicken(){
   scene.add(c.g);
   chickens.push({ g:c.g, legs:c.legs, life:10, atkT:0.4, phase:0 });
 }
+
+// ---- Disco Ball Gun: full dance mode — spinning mirror ball, colorful floor,
+// dance music, and every zombie stops to boogie.
+let danceT = 0, discoBall = null, danceFloor = null, floorLights = [];
+let danceMusicTimer = null, danceBeat = 0;
+function ensureDiscoRig(){
+  if(discoBall) return;
+  const g = new THREE.Group();
+  const ball = new THREE.Mesh(new THREE.IcosahedronGeometry(1.3, 1),
+    new THREE.MeshPhongMaterial({ color:0x8899bb, specular:0xffffff, shininess:100, emissive:0x141420, flatShading:true }));
+  g.add(ball);
+  const cord = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 8, 6),
+    new THREE.MeshBasicMaterial({ color:0x222222, fog:false }));
+  cord.position.y = 5.3; g.add(cord);
+  g.position.set(0, 8.5, 0); g.visible = false; scene.add(g); discoBall = g;
+  danceFloor = new THREE.Group();
+  const N = 7, S = 2.4;
+  for(let i=0;i<N;i++) for(let j=0;j<N;j++){
+    const t = new THREE.Mesh(new THREE.PlaneGeometry(S*0.9, S*0.9),
+      new THREE.MeshBasicMaterial({ color:0xffffff, transparent:true, opacity:0.55 }));
+    t.rotation.x = -Math.PI/2; t.position.set((i-(N-1)/2)*S, 0.06, (j-(N-1)/2)*S);
+    danceFloor.add(t);
+  }
+  danceFloor.visible = false; scene.add(danceFloor);
+  for(let k=0;k<4;k++){ const L = new THREE.PointLight(0xffffff, 0, 34); L.visible = false; scene.add(L); floorLights.push(L); }
+}
+function startDanceMode(){
+  ensureDiscoRig();
+  danceT = 8;
+  discoBall.visible = true; danceFloor.visible = true;
+  for(const L of floorLights) L.visible = true;
+  startDanceMusic();
+  unlockAch('disco');
+}
+function endDanceMode(){
+  danceT = 0;
+  if(discoBall) discoBall.visible = false;
+  if(danceFloor) danceFloor.visible = false;
+  for(const L of floorLights){ L.visible = false; L.intensity = 0; }
+  stopDanceMusic();
+}
+function updateDanceRig(now, dt){
+  discoBall.rotation.y += dt * 2.4;
+  discoBall.children[0].rotation.x += dt * 0.6;
+  danceFloor.children.forEach((t, idx) => {
+    t.material.color.setHSL(((now*0.0008 + idx*0.09) % 1 + 1) % 1, 1, 0.55);
+  });
+  floorLights.forEach((L, k) => {
+    const a = now*0.0013 + k*(Math.PI*2/floorLights.length);
+    L.position.set(Math.cos(a)*13, 2.5, Math.sin(a)*13);
+    L.color.setHSL(((now*0.0003 + k*0.25) % 1 + 1) % 1, 1, 0.5);
+    L.intensity = 1.3 + Math.sin(now*0.02 + k)*0.7;
+  });
+}
+function startDanceMusic(){
+  if(danceMusicTimer) return;
+  danceBeat = 0;
+  danceMusicTimer = setInterval(danceTick, 160);
+}
+function stopDanceMusic(){ if(danceMusicTimer){ clearInterval(danceMusicTimer); danceMusicTimer = null; } }
+function danceTick(){
+  if(danceT <= 0 || state !== 'playing'){ stopDanceMusic(); return; }
+  if(paused) return;
+  const b = danceBeat % 8;
+  if(b === 0 || b === 4) tone(70, 52, .18, 'square', .3);   // four-on-the-floor bass
+  if(b % 2 === 1) noiseBurst(.025, .06, 7000);               // hi-hat
+  const mel = [523, 0, 659, 784, 0, 659, 880, 784];
+  if(mel[b]) tone(mel[b], mel[b], .11, 'square', .12);
+  danceBeat++;
+}
 function meleeAttack(w){
   const dir = new THREE.Vector3(); camera.getWorldDirection(dir);
   let hitAny = false;
@@ -1271,6 +1341,7 @@ function tryAttack(now){
     if(w.meteor){ spawnMeteors(w); SFX.meteor(); }
     else if(w.cat){ launchCat(); SFX.meow(); }
     else if(w.chicken){ launchChicken(); SFX.cluck(); }
+    else if(w.dancemode){ startDanceMode(); SFX.disco(); }
     else if(w.pellets){
       for(let i=0;i<w.pellets;i++) shootProjectile(w, w.spread);
       SFX.shotgun();
@@ -1400,6 +1471,7 @@ function startGame(){
   runStartMap = currentMap;
   runVisited = new Set([currentMap]);
   speedT = 0; shieldT = 0;
+  endDanceMode();
   py = 0; jvy = 0; pvx = 0; pvz = 0;
   $('nameRow').classList.add('hidden');
   if(document.activeElement && document.activeElement.blur) document.activeElement.blur(); // Space must jump, not re-click PLAY
@@ -1426,6 +1498,7 @@ function gameOver(){
   fireBtn.style.display = 'none';
   lookStickEl.style.display = 'none';
   jumpBtn.style.display = 'none';
+  endDanceMode();
   SFX.gameover();
   if(!adminUsed && score > best){ best = score; store.set('zr3d_best', best); }
   document.exitPointerLock && document.exitPointerLock();
@@ -1893,6 +1966,16 @@ function simulate(dt, now){
     }
   }
 
+  // ---- disco dance mode timer + rig animation
+  if(danceT > 0){
+    if(state !== 'playing'){ endDanceMode(); }
+    else {
+      danceT -= dt;
+      updateDanceRig(now, dt);
+      if(danceT <= 0) endDanceMode();
+    }
+  }
+
   // ---- spawning
   if(playing){
     if(spawnQueue.length && zombies.length < Math.min(14 + wave, 26)){
@@ -1957,6 +2040,23 @@ function simulate(dt, now){
         damageZombie(z, 1);
         break;
       }
+    }
+
+    // disco dance mode: everybody dance! (no chasing, no attacking)
+    if(danceT > 0 && playing){
+      z.phase += dt * 9;
+      z.g.rotation.y += dt * 2.5;
+      z.g.rotation.z = Math.sin(z.phase) * 0.28;
+      z.legL.rotation.x = Math.sin(z.phase*2) * 0.5;
+      z.legR.rotation.x = -Math.sin(z.phase*2) * 0.5;
+      z.armL.rotation.x = -Math.PI/2 + Math.sin(z.phase*3) * 0.9;
+      z.armR.rotation.x = -Math.PI/2 - Math.sin(z.phase*3) * 0.9;
+      p.x += z.kbx*dt; p.z += z.kbz*dt;
+      z.kbx *= Math.pow(0.02, dt); z.kbz *= Math.pow(0.02, dt);
+      p.x = clamp(p.x, -ARENA, ARENA); p.z = clamp(p.z, -ARENA, ARENA);
+      p.y = Math.abs(Math.sin(z.phase*2)) * 0.28;
+      if(z.flash > 0) z.flash -= dt;
+      continue;
     }
 
     if(playing){
